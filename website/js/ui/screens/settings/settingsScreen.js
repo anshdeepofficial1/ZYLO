@@ -11456,8 +11456,9 @@ export const SettingsScreen = {
         return;
       }
       // In the browser a section is its own route: Back is the browser's, so
-      // this handler leaves it alone once the dialogs above are closed.
+      // navigate back when no dialog is open.
       if (settingsUsesRoutePages()) {
+        Router.back();
         return;
       }
       if (this.focusZone === "sidebar") {

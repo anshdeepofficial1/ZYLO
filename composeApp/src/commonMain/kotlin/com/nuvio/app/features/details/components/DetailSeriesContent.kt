@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -215,38 +216,40 @@ fun DetailSeriesContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (seasons.size == 1) {
-                            DetailSectionTitle(
-                                title = if (meta.type != "series" && seasonForContent <= 0) {
-                                    stringResource(Res.string.details_videos)
-                                } else {
-                                    seasonForContent.label()
-                                },
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                        DetailSectionTitle(
+                            title = if (meta.type != "series" && seasonForContent <= 0) {
+                                stringResource(Res.string.details_videos)
+                            } else {
+                                seasonForContent.label()
+                            },
+                        )
                         if (onDownloadSeasonClick != null) {
-                            Row(
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .clickable { onDownloadSeasonClick(seasonForContent) }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    .clickable { onDownloadSeasonClick(seasonForContent) },
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudDownload,
-                                    contentDescription = "Download Season",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                                Text(
-                                    text = "Download Season",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = "Download Season",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = if (seasonForContent > 0) "Download Season $seasonForContent" else "Download",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
                             }
                         }
                     }

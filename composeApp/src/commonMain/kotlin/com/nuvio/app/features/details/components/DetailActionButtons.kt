@@ -269,10 +269,25 @@ fun DetailActions(
             onClick = onClick,
         )
     }
+    // Download is always visible as a pinned action when available;
+    // Shuffle takes the pinned slot when actively enabled.
+    val downloadAction = onDownloadClick?.let { onClick ->
+        DetailSecondaryAction(
+            label = "Download",
+            icon = Icons.Default.CloudDownload,
+            isActive = false,
+            onClick = onClick,
+        )
+    }
+    val effectivePinnedAction = when {
+        shuffleAction != null && shuffleEnabled -> shuffleAction
+        downloadAction != null -> downloadAction
+        else -> null
+    }
     DetailActionButtons(
         playLabel = if (playEnabled) playLabel else stringResource(Res.string.playback_unavailable),
         playEnabled = playEnabled,
-        pinnedAction = shuffleAction?.takeIf { shuffleEnabled },
+        pinnedAction = effectivePinnedAction,
         secondaryActions = buildList {
             if (!shuffleEnabled) shuffleAction?.let(::add)
             add(
@@ -292,16 +307,7 @@ fun DetailActions(
                     onLongClick = onSaveLongClick,
                 ),
             )
-            onDownloadClick?.let { onClick ->
-                add(
-                    DetailSecondaryAction(
-                        label = "Download",
-                        icon = Icons.Default.CloudDownload,
-                        isActive = false,
-                        onClick = onClick,
-                    ),
-                )
-            }
+            downloadAction?.let(::add)
             onMoreClick?.let { onClick ->
                 add(
                     DetailSecondaryAction(

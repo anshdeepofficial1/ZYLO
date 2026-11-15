@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -121,6 +122,7 @@ internal fun PlayerControlActions(
     onOpenInExternalPlayer: (() -> Unit)?,
     onStreamInfoClick: () -> Unit,
     onSubmitIntroClick: (() -> Unit)?,
+    onJumpToTimeClick: (() -> Unit)? = null,
     onInteraction: () -> Unit,
 ) {
     val actions = playerControlActions(
@@ -138,6 +140,7 @@ internal fun PlayerControlActions(
         onOpenInExternalPlayer = onOpenInExternalPlayer,
         onStreamInfoClick = onStreamInfoClick,
         onSubmitIntroClick = onSubmitIntroClick,
+        onJumpToTimeClick = onJumpToTimeClick,
     )
     val hasOverflow = actions.size > 5
     var expanded by remember(hasOverflow) { mutableStateOf(false) }
@@ -239,8 +242,15 @@ internal fun playerControlActions(
     onOpenInExternalPlayer: (() -> Unit)?,
     onStreamInfoClick: () -> Unit,
     onSubmitIntroClick: (() -> Unit)?,
+    onJumpToTimeClick: (() -> Unit)? = null,
 ): List<PlayerControlAction> =
     listOfNotNull(
+        onJumpToTimeClick?.let {
+            PlayerControlAction(
+                "Jump to Time", it,
+                icon = Icons.Default.AccessTime,
+            )
+        },
         onNextEpisodeClick?.let {
             PlayerControlAction(
                 stringResource(Res.string.player_next_episode), it,

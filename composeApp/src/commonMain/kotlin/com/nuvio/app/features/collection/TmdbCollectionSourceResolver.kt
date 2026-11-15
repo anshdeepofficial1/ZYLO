@@ -9,6 +9,9 @@ import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.tmdb.buildTmdbUrl
 import com.nuvio.app.features.tmdb.normalizeTmdbLanguage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -276,30 +279,67 @@ object TmdbCollectionSourceResolver {
             source.tmdbMediaType()
         }
         val filters = source.filters ?: TmdbCollectionFilters()
-        val query = buildDiscoverQuery(
-            source = source,
-            sourceType = sourceType,
-            mediaType = mediaType,
-            language = language,
-            page = page,
-            filters = filters,
-        )
         val endpoint = when (mediaType) {
             TmdbCollectionMediaType.MOVIE -> "discover/movie"
             TmdbCollectionMediaType.TV -> "discover/tv"
         }
-        val body = fetch<TmdbDiscoverResponse>(
-            endpoint = endpoint,
-            apiKey = apiKey,
-            query = query,
-        ) ?: error(getString(Res.string.collections_tmdb_discover_no_data))
-        val items = body.results.orEmpty()
+
+        // TMDB only accepts a single ISO 639-1 language code in with_original_language.
+        // When multiple languages are pipe-separated (e.g. "te|ta|ml|kn" for South Indian
+        // cinema), split them and issue a parallel request per language, then merge results.
+        val originalLangFilter = filters.withOriginalLanguage
+        val langs = if (originalLangFilter != null && originalLangFilter.contains('|')) {
+            originalLangFilter.split('|').map { it.trim() }.filter { it.isNotBlank() }
+        } else {
+            listOf(null) // no split needed — pass through as-is (single or null)
+        }
+
+        val allResults: List<TmdbListItem> = if (langs.size > 1) {
+            coroutineScope {
+                langs.map { lang ->
+                    async {
+                        val langFilters = filters.copy(withOriginalLanguage = lang)
+                        val query = buildDiscoverQuery(
+                            source = source,
+                            sourceType = sourceType,
+                            mediaType = mediaType,
+                            language = language,
+                            page = page,
+                            filters = langFilters,
+                        )
+                        fetch<TmdbDiscoverResponse>(endpoint = endpoint, apiKey = apiKey, query = query)
+                            ?.results.orEmpty()
+                    }
+                }.awaitAll().flatten()
+            }
+        } else {
+            val query = buildDiscoverQuery(
+                source = source,
+                sourceType = sourceType,
+                mediaType = mediaType,
+                language = language,
+                page = page,
+                filters = filters,
+            )
+            val body = fetch<TmdbDiscoverResponse>(
+                endpoint = endpoint,
+                apiKey = apiKey,
+                query = query,
+            ) ?: error(getString(Res.string.collections_tmdb_discover_no_data))
+            body.results.orEmpty()
+        }
+
+        if (allResults.isEmpty()) {
+            error(getString(Res.string.collections_tmdb_discover_no_data))
+        }
+        val items = allResults
             .mapNotNull { it.toPreview(mediaType) }
             .distinctBy { it.id }
         return CatalogPage(
             items = items,
             rawItemCount = items.size,
-            nextSkip = if ((body.page ?: page) < (body.totalPages ?: page) && items.isNotEmpty()) page + 1 else null,
+            // For multi-language merges we return all results on page 1 without pagination
+            nextSkip = if (langs.size <= 1 && items.isNotEmpty()) page + 1 else null,
         )
     }
 

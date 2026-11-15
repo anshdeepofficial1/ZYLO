@@ -1736,6 +1736,10 @@ private class NuvioLibmpvView(
         mpv.setPropertyBoolean("keep-open", true)
         mpv.setPropertyBoolean("input-default-bindings", true)
         mpv.setPropertyBoolean("audio-fallback-to-null", true)
+        // Disable libmpv's built-in youtube-dl hook — ZYLO resolves stream URLs itself
+        // before passing them to the player. The hook binary is not shipped and its
+        // activation causes [ytdl_hook] Subprocess failed: init errors.
+        mpv.setOptionString("ytdl", "no")
     }
 
     override fun observeProperties() {

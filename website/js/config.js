@@ -28,7 +28,7 @@ export const SUPABASE_URL = String(runtimeEnv.NUVIO_SUPABASE_URL || "").trim();
 export const SUPABASE_ANON_KEY = String(runtimeEnv.NUVIO_SUPABASE_ANON_KEY || "").trim();
 export const SUPABASE_FALLBACK_URL = String(runtimeEnv.NUVIO_SUPABASE_FALLBACK_URL || "").trim();
 export const TV_LOGIN_WEB_BASE_URL = String(
-  runtimeEnv.TV_LOGIN_WEB_BASE_URL || "https://zyloweb.vercel.app/link"
+  runtimeEnv.TV_LOGIN_WEB_BASE_URL || "https://zyloweb.vercel.app"
 ).trim();
 export const YOUTUBE_PROXY_URL = String(
   runtimeEnv.YOUTUBE_PROXY_URL || "youtube-proxy.html"

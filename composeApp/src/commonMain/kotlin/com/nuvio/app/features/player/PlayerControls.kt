@@ -117,6 +117,7 @@ internal fun PlayerControlsShell(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onVideoSettingsClick: (() -> Unit)? = null,
+    onJumpToTimeClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     chapters: List<PlayerChapter> = emptyList(),
@@ -377,6 +378,7 @@ internal fun PlayerControlsShell(
                         onOpenInExternalPlayer = onOpenInExternalPlayer,
                         onStreamInfoClick = onStreamInfoClick,
                         onSubmitIntroClick = onSubmitIntroClick,
+                        onJumpToTimeClick = onJumpToTimeClick,
                         onInteraction = onInteraction,
                     )
                 }

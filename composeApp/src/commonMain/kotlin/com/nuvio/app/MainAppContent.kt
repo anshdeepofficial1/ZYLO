@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -39,9 +41,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
@@ -81,6 +85,7 @@ import com.nuvio.app.core.ui.PosterZoomAnchorHolder
 import com.nuvio.app.core.ui.PosterZoomOverlayAction
 import com.nuvio.app.core.ui.PosterZoomOverlayExitAnimation
 import com.nuvio.app.core.ui.TrackingListPickerDialog
+import com.nuvio.app.features.player.JumpToTimeDialog
 import com.nuvio.app.core.ui.isLiquidGlassNativeTabBarSupported
 import com.nuvio.app.core.ui.localizedContinueWatchingSubtitle
 import com.nuvio.app.core.ui.nuvio
@@ -248,6 +253,7 @@ internal fun MainAppContent(
             }
         }
         val hapticFeedback = LocalHapticFeedback.current
+        val clipboardManager = LocalClipboardManager.current
         val focusManager = LocalFocusManager.current
         val uriHandler = LocalUriHandler.current
         val coroutineScope = rememberCoroutineScope()
@@ -281,6 +287,7 @@ internal fun MainAppContent(
         val posterOverlayHazeState = rememberHazeState()
         var selectedContinueWatchingForActions by remember { mutableStateOf<ContinueWatchingItem?>(null) }
         var selectedContinueWatchingZoomAnchor by remember { mutableStateOf<PosterZoomAnchor?>(null) }
+        var continueWatchingItemForJumpToTime by remember { mutableStateOf<ContinueWatchingItem?>(null) }
         val libraryDisintegrationRequests = remember { DisintegrationRequestController<String>() }
         val continueWatchingDisintegrationRequests = remember { DisintegrationRequestController<String>() }
         var requestedSettingsPageName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1257,6 +1264,29 @@ internal fun MainAppContent(
             openContinueWatching(item, true, false)
         }
 
+        val openContinueWatchingAtPosition: (ContinueWatchingItem, Long) -> Unit = { item, targetMs ->
+            resumePromptItem = null
+            launchPlaybackWithDownloadPreference(
+                type = item.parentMetaType,
+                videoId = item.videoId,
+                parentMetaId = item.parentMetaId,
+                parentMetaType = item.parentMetaType,
+                title = item.title,
+                logo = item.logo,
+                poster = item.poster,
+                background = item.background,
+                seasonNumber = item.seasonNumber,
+                episodeNumber = item.episodeNumber,
+                episodeTitle = item.episodeTitle,
+                episodeThumbnail = item.episodeThumbnail,
+                pauseDescription = item.pauseDescription,
+                resumePositionMs = targetMs,
+                resumeProgressFraction = 0f,
+                manualSelection = false,
+                startFromBeginning = false,
+            )
+        }
+
         val onContinueWatchingRemove: (ContinueWatchingItem) -> Unit = { item ->
             continueWatchingDisintegrationRequests.arm(continueWatchingItemKey(item))
             if (item.isNextUp) {
@@ -1931,6 +1961,26 @@ internal fun MainAppContent(
                                         ),
                                     )
                                 }
+                                if (canPlayContinueWatching(item)) {
+                                    add(
+                                        PosterZoomOverlayAction(
+                                            icon = Icons.Default.AccessTime,
+                                            label = "Jump to Time",
+                                            onSelected = { continueWatchingItemForJumpToTime = item },
+                                        ),
+                                    )
+                                }
+                                add(
+                                    PosterZoomOverlayAction(
+                                        icon = Icons.Default.Share,
+                                        label = "Share",
+                                        onSelected = {
+                                            val shareUrl = "https://zyloweb.vercel.app/detail/${item.parentMetaType}/${item.parentMetaId}"
+                                            clipboardManager.setText(AnnotatedString(shareUrl))
+                                            NuvioToastController.show("Link copied to clipboard: $shareUrl")
+                                        },
+                                    ),
+                                )
                                 if (item.canMarkWatched()) {
                                     add(
                                         PosterZoomOverlayAction(
@@ -1981,6 +2031,17 @@ internal fun MainAppContent(
                     ?.let { item -> { onContinueWatchingStartFromBeginning(item) } },
                 onPlayManually = selectedContinueWatchingForActions
                     ?.let { item -> { onContinueWatchingPlayManually(item) } },
+                onJumpToTime = selectedContinueWatchingForActions
+                    ?.takeIf { canPlayContinueWatching(it) }
+                    ?.let { item -> { continueWatchingItemForJumpToTime = item } },
+                onShare = selectedContinueWatchingForActions
+                    ?.let { item ->
+                        {
+                            val shareUrl = "https://zyloweb.vercel.app/detail/${item.parentMetaType}/${item.parentMetaId}"
+                            clipboardManager.setText(AnnotatedString(shareUrl))
+                            NuvioToastController.show("Link copied to clipboard: $shareUrl")
+                        }
+                    },
                 onMarkWatched = selectedContinueWatchingForActions
                     ?.takeIf { it.canMarkWatched() }
                     ?.let { item -> { onContinueWatchingMarkWatched(item) } },
@@ -1988,6 +2049,19 @@ internal fun MainAppContent(
                     selectedContinueWatchingForActions?.let(onContinueWatchingRemove)
                 },
             )
+
+            if (continueWatchingItemForJumpToTime != null) {
+                val jumpItem = continueWatchingItemForJumpToTime!!
+                JumpToTimeDialog(
+                    currentPositionMs = jumpItem.resumePositionMs,
+                    durationMs = jumpItem.durationMs,
+                    onDismiss = { continueWatchingItemForJumpToTime = null },
+                    onJump = { targetMs ->
+                        continueWatchingItemForJumpToTime = null
+                        openContinueWatchingAtPosition(jumpItem, targetMs)
+                    },
+                )
+            }
 
             TrackingListPickerDialog(
                 visible = showLibraryListPicker,

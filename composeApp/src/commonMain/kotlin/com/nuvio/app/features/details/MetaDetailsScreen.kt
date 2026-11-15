@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAddCheckCircle
@@ -258,6 +259,8 @@ fun MetaDetailsScreen(
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var autoLoadAttempted by remember(type, id) { mutableStateOf(false) }
     var observedOfflineState by remember(type, id) { mutableStateOf(false) }
+    var showDownloadOptionsDialog by remember { mutableStateOf(false) }
+    var downloadTargetSubtitle by remember { mutableStateOf<String?>(null) }
     var selectedEpisodeForActions by remember(type, id) { mutableStateOf<MetaVideo?>(null) }
     var selectedEpisodeZoomAnchor by remember(type, id) { mutableStateOf<PosterZoomAnchor?>(null) }
     var episodeToRate by remember(type, id) { mutableStateOf<MetaVideo?>(null) }
@@ -1029,8 +1032,6 @@ fun MetaDetailsScreen(
                         },
                     )
                 }
-                var showDownloadOptionsDialog by remember { mutableStateOf(false) }
-                var downloadTargetSubtitle by remember { mutableStateOf<String?>(null) }
                 val onDownloadClick: () -> Unit = {
                     downloadTargetSubtitle = if (meta.type == "series" || hasEpisodes) {
                         seriesAction?.let { "S${it.seasonNumber} E${it.episodeNumber} • ${it.episodeTitle ?: "Episode"}" } ?: "Season 1"
@@ -1503,6 +1504,10 @@ fun MetaDetailsScreen(
                                 onPlayManually = {
                                     onEpisodeManualPlayClick(selectedEpisode)
                                 },
+                                onDownloadEpisode = {
+                                    downloadTargetSubtitle = "S${selectedEpisode.season ?: 1} E${selectedEpisode.episode ?: 1} • ${selectedEpisode.title ?: "Episode"}"
+                                    showDownloadOptionsDialog = true
+                                },
                                 ratingMedia = remember(meta, selectedEpisode) { meta.ratingReference(selectedEpisode) },
                             )
                         }
@@ -1871,6 +1876,16 @@ fun MetaDetailsScreen(
                             ),
                         )
                     }
+                    add(
+                        PosterZoomOverlayAction(
+                            icon = Icons.Default.CloudDownload,
+                            label = "Download Episode",
+                            onSelected = {
+                                downloadTargetSubtitle = "S${selectedEpisode.season ?: 1} E${selectedEpisode.episode ?: 1} • ${selectedEpisode.title ?: "Episode"}"
+                                showDownloadOptionsDialog = true
+                            },
+                        ),
+                    )
                 },
                 hazeState = episodeOverlayHazeState,
                 onDismissed = {

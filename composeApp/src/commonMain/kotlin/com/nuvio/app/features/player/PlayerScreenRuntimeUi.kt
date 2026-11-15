@@ -410,6 +410,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
             } else {
                 null
             },
+            onJumpToTimeClick = { showJumpToTimeModal = true },
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
             chapters = chapters,
@@ -831,6 +832,25 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
                 switchPlaybackEngine()
             },
             onDismiss = { showSwitchEngineConfirm = false },
+        )
+    }
+
+    if (showJumpToTimeModal) {
+        JumpToTimeDialog(
+            currentPositionMs = displayedPositionMs,
+            durationMs = playbackSnapshot.durationMs,
+            onDismiss = { showJumpToTimeModal = false },
+            onJump = { targetMs ->
+                showJumpToTimeModal = false
+                val durationMs = playbackSnapshot.durationMs
+                val requestedMs = if (durationMs > 0L) targetMs.coerceAtMost(durationMs - 1) else targetMs
+                val seekMs = if (isPartyControlLocked) ownSeekTarget(requestedMs) else requestedMs
+                if (seekMs != null) {
+                    playerController?.seekTo(seekMs)
+                    scheduleProgressSyncAfterSeek()
+                    publishPartyPlayback(positionMs = seekMs)
+                }
+            },
         )
     }
 }

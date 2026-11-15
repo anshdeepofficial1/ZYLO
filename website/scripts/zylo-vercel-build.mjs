@@ -39,7 +39,7 @@ if (new URL(accountValues.NUVIO_SUPABASE_FALLBACK_URL).protocol !== "https:") th
 const settings = [
   "PROBE_MODE=off", "REMUX_MODE=off", "TRANSCODE_MODE=none",
   "SIMKL_APP_NAME=ZYLO",
-  "TV_LOGIN_WEB_BASE_URL=https://zyloweb.vercel.app/link"
+  "TV_LOGIN_WEB_BASE_URL=https://zyloweb.vercel.app"
 ];
 for (const key of publicKeys) {
   const value = accountValues[key] || process.env[key];

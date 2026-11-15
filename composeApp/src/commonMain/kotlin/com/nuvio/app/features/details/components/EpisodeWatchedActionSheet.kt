@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAddCheckCircle
@@ -66,6 +67,7 @@ fun EpisodeWatchedActionSheet(
     onToggleSeasonWatched: () -> Unit,
     showPlayManually: Boolean = false,
     onPlayManually: (() -> Unit)? = null,
+    onDownloadEpisode: (() -> Unit)? = null,
     ratingMedia: TrackingMediaReference? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -176,6 +178,16 @@ fun EpisodeWatchedActionSheet(
                                 title = stringResource(Res.string.play_manually),
                                 onClick = {
                                     onPlayManually()
+                                    dismiss()
+                                },
+                            )
+                        }
+                        if (onDownloadEpisode != null) {
+                            NuvioBottomSheetActionRow(
+                                icon = Icons.Default.CloudDownload,
+                                title = "Download Episode",
+                                onClick = {
+                                    onDownloadEpisode()
                                     dismiss()
                                 },
                             )

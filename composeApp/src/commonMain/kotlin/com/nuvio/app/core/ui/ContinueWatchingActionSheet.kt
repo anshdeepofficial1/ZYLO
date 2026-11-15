@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,6 +52,8 @@ fun NuvioContinueWatchingActionSheet(
     onOpenDetails: () -> Unit,
     onStartFromBeginning: (() -> Unit)? = null,
     onPlayManually: (() -> Unit)? = null,
+    onJumpToTime: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     onMarkWatched: (() -> Unit)? = null,
     onRemove: () -> Unit,
 ) {
@@ -99,6 +103,20 @@ fun NuvioContinueWatchingActionSheet(
                     icon = Icons.Default.Replay,
                     title = stringResource(Res.string.cw_action_start_from_beginning),
                     onClick = { dismissAfter(onStartFromBeginning) },
+                )
+            }
+            if (onJumpToTime != null) {
+                NuvioBottomSheetActionRow(
+                    icon = Icons.Default.AccessTime,
+                    title = "Jump to Time",
+                    onClick = { dismissAfter(onJumpToTime) },
+                )
+            }
+            if (onShare != null) {
+                NuvioBottomSheetActionRow(
+                    icon = Icons.Default.Share,
+                    title = "Share",
+                    onClick = { dismissAfter(onShare) },
                 )
             }
             if (onMarkWatched != null) {

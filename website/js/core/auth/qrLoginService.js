@@ -77,16 +77,13 @@ function resolveRedirectBaseUrl() {
   if (!base && typeof window !== "undefined") {
     const protocol = String(window.location?.protocol || "");
     if (protocol === "http:" || protocol === "https:") {
-      base = `${window.location.origin}/link`;
+      base = window.location.origin;
     }
   }
   if (!base) {
-    base = "https://zyloweb.vercel.app/link";
+    base = "https://zyloweb.vercel.app";
   }
-  if (!base.endsWith("/link") && !base.endsWith("/link/")) {
-    base = base.replace(/\/+$/, "") + "/link";
-  }
-  return base;
+  return base.replace(/\/+$/, "");
 }
 
 function extractOrigin(url) {
@@ -102,9 +99,17 @@ function buildRedirectCandidates() {
   const primary = resolveRedirectBaseUrl();
   if (primary) {
     candidates.push(primary);
+    candidates.push(`${primary}/link`);
   }
+  candidates.push("https://zyloweb.vercel.app");
   candidates.push("https://zyloweb.vercel.app/link");
+  candidates.push("https://zylod.vercel.app");
   candidates.push("https://zylod.vercel.app/link");
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const origin = window.location.origin.replace(/\/+$/, "");
+    candidates.push(origin);
+    candidates.push(`${origin}/link`);
+  }
   return Array.from(new Set(candidates.filter(Boolean)));
 }
 
