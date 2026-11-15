@@ -82,3 +82,7 @@ Developed with ❤️ by **Anshdeep Singh**.
 ## 📄 License
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+---
+
+**Developer profile:** This repository is part of the public project portfolio of [Anshdeep Singh](https://github.com/anshdeepofficial1). [Official portfolio](https://anshdeepofficial1.vercel.app/about) · [Public project directory](https://anshdeepofficial1.vercel.app/work).
