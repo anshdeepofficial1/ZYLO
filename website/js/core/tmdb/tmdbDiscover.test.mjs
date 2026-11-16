@@ -22,3 +22,12 @@ test("valid empty result remains empty",async()=>{
   const r=await fetchTmdbDiscover({params:new URLSearchParams({with_original_language:"hi"}),fetchImpl:async()=>({ok:true,json:async()=>({results:[],total_pages:0})})});
   assert.deepEqual(r.results,[]);
 });
+
+test("partial regional failure retains successful language results", async () => {
+  const result = await fetchTmdbDiscover({params:new URLSearchParams({with_original_language:"te|ta"}),fetchImpl:async url=>{
+    const language = new URL(url).searchParams.get("with_original_language");
+    if(language === "te") return {ok:false,status:503,json:async()=>({})};
+    return {ok:true,json:async()=>({results:[{id:42}],total_pages:1})};
+  }});
+  assert.deepEqual(result.results,[{id:42}]);
+});
