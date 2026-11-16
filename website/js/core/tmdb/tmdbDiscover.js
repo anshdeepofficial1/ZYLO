@@ -4,7 +4,7 @@ export async function fetchTmdbDiscover({ mediaType = "movie", params, signal, f
   const languages = [...new Set(String(base.get("with_original_language") || "").split(/[|,]/).map(value => value.trim()).filter(Boolean))];
   const page = Math.max(1, Number(base.get("page") || 1));
   const requests = languages.length ? languages : [null];
-  const payloads = await Promise.all(requests.map(async language => {
+  const settled = await Promise.allSettled(requests.map(async language => {
     const query = new URLSearchParams(base);
     if (language) query.set("with_original_language", language);
     const response = await fetchImpl(`https://api.themoviedb.org/3/discover/${mediaType}?${query}`, { signal });
@@ -15,6 +15,9 @@ export async function fetchTmdbDiscover({ mediaType = "movie", params, signal, f
     if (!Array.isArray(body?.results)) throw new Error("TMDB discover returned an invalid response");
     return body;
   }));
+  if (signal?.aborted) throw signal.reason || new Error("TMDB discover aborted");
+  const payloads = settled.filter(result => result.status === "fulfilled").map(result => result.value);
+  if (!payloads.length) throw settled[0]?.reason || new Error("TMDB discover failed");
   const byId = new Map();
   for (const payload of payloads) {
     for (const item of payload.results) {
