@@ -262,7 +262,6 @@ object HomeRepository {
                     sortBy = TmdbCollectionSort.POPULAR_DESC.value,
                     filters = TmdbCollectionFilters(
                         withOriginalLanguage = lang,
-                        withOriginCountry = "IN",
                     ),
                 )
             }

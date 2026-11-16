@@ -20,78 +20,77 @@ object ZyloStreams {
 
     val SERVERS: List<ServerDefinition> = listOf(
         ServerDefinition(
-            id = "nitro",
-            name = "Nitro - [Multi-Lang]",
-            titleFormat = "Nitro [Multi-Lang] • 1080p Auto | Multi-Audio",
-            description = "Multi-Audio (Hindi • Tamil • Telugu • English) • Ultra Fast CDN",
-            referer = "https://nitro.stream/",
+            id = "vid_stpm",
+            name = "VidLink - [Multi-Lang]",
+            titleFormat = "VidLink [Multi-Lang] • 1080p Ultra Fast Direct",
+            description = "Multi-Audio (Hindi • English • Tamil • Telugu) • CloudFront CDN",
+            referer = "https://vidlink.pro/",
             isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "mahalala",
-            name = "Mahalala - [Multi-Lang]",
-            titleFormat = "Mahalala [Multi-Lang] • 1080p South & Bollywood Cinema",
-            description = "Multi-Audio (Tamil • Telugu • Malayalam • Kannada • Hindi) • Direct",
-            referer = "https://mahalala.stream/",
-            isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "multi_bill",
-            name = "Multi-bill-[Multi-Lang]",
-            titleFormat = "Multi-bill [Multi-Lang] • 1080p Dual Audio Master",
-            description = "High-Bandwidth Multi-Language Server",
-            referer = "https://multibill.stream/",
-            isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "aws_ply",
-            name = "AwsPly-[Multi-Lang]",
-            titleFormat = "AwsPly [Multi-Lang] • CloudFront Global CDN",
-            description = "Low Latency • Adaptive Bitrate HLS (Multi-Audio)",
-            referer = "https://awsply.stream/",
-            isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "cast_vid",
-            name = "CastVid",
-            titleFormat = "CastVid • 1080p Fast Direct Stream",
-            description = "CastVid Global Edge Network",
-            referer = "https://castvid.net/",
-        ),
-        ServerDefinition(
-            id = "strem_fx",
-            name = "StremFx",
-            titleFormat = "StremFx • 1080p High-Speed HLS",
-            description = "StreamFX Bufferless Edge Node",
-            referer = "https://stremfx.com/",
-        ),
-        ServerDefinition(
-            id = "citadel",
-            name = "Citadel",
-            titleFormat = "Citadel • 1080p Resilient Multi-Source",
-            description = "Citadel Resilient Cluster",
-            referer = "https://citadel.stream/",
-        ),
-        ServerDefinition(
-            id = "pure_wave",
-            name = "PureWave",
-            titleFormat = "PureWave • 1080p Clean Direct Stream",
-            description = "PureWave High-Performance Node",
-            referer = "https://purewave.to/",
         ),
         ServerDefinition(
             id = "vixo",
-            name = "Vixo",
-            titleFormat = "Vixo • 1080p / 720p Pro Stream",
-            description = "Vixo Multi-Source Fast Cluster",
-            referer = "https://vixo.to/",
+            name = "VidSrc - [Multi-Lang]",
+            titleFormat = "VidSrc [Multi-Lang] • 1080p High Speed Cluster",
+            description = "VidSrc Dedicated Global Streaming Engine",
+            referer = "https://vidsrc.xyz/",
+            isMultiLang = true,
+        ),
+        ServerDefinition(
+            id = "vid_pro",
+            name = "VidSrc Pro",
+            titleFormat = "VidSrc Pro • 1080p Dedicated HD Node",
+            description = "High-Bandwidth Multi-Source Video Network",
+            referer = "https://vidsrc.pro/",
+        ),
+        ServerDefinition(
+            id = "vid_mv",
+            name = "AutoEmbed - [Multi-Lang]",
+            titleFormat = "AutoEmbed [Multi-Lang] • 1080p Adaptive HLS",
+            description = "Fast Multi-Language Direct Server",
+            referer = "https://autoembed.cc/",
+            isMultiLang = true,
+        ),
+        ServerDefinition(
+            id = "vid_fk",
+            name = "SmashyStream",
+            titleFormat = "SmashyStream • 1080p / 720p Clean Direct",
+            description = "SmashyStream Low-Latency Edge Cluster",
+            referer = "https://embed.smashystream.com/",
         ),
         ServerDefinition(
             id = "prvibd",
-            name = "Prvibd",
-            titleFormat = "Prvibd • 1080p ProEmbed CDN",
-            description = "Private High-Speed Embed Server",
-            referer = "https://proembed.top/",
+            name = "MultiEmbed",
+            titleFormat = "MultiEmbed • 1080p Multi-Source Stream",
+            description = "MultiEmbed High-Bandwidth Cluster",
+            referer = "https://multiembed.mov/",
+        ),
+        ServerDefinition(
+            id = "vid_emd",
+            name = "2Embed",
+            titleFormat = "2Embed • 1080p Adaptive Stream Engine",
+            description = "2Embed Edge Video Network",
+            referer = "https://2embed.cc/",
+        ),
+        ServerDefinition(
+            id = "vid_emt",
+            name = "2Embed Stream",
+            titleFormat = "2Embed Stream • 1080p Direct Node",
+            description = "2Embed Stream Dedicated Cluster",
+            referer = "https://www.2embed.stream/",
+        ),
+        ServerDefinition(
+            id = "embed_su",
+            name = "EmbedSu",
+            titleFormat = "EmbedSu • 1080p Fast Direct Stream",
+            description = "EmbedSu Bufferless Edge Server",
+            referer = "https://embed.su/",
+        ),
+        ServerDefinition(
+            id = "super_embed",
+            name = "SuperEmbed",
+            titleFormat = "SuperEmbed • 1080p Global Edge Network",
+            description = "SuperEmbed High-Performance Cluster",
+            referer = "https://superembed.stream/",
         ),
         ServerDefinition(
             id = "ophm",
@@ -101,69 +100,12 @@ object ZyloStreams {
             referer = "https://ophim1.com/",
         ),
         ServerDefinition(
-            id = "vid_stpm",
-            name = "VidStpM",
-            titleFormat = "VidStpM • VidStream Link Direct",
-            description = "VidLink High-Bandwidth Hub",
-            referer = "https://vidlink.pro/",
-        ),
-        ServerDefinition(
             id = "show_nitro",
-            name = "ShowNitro",
-            titleFormat = "ShowNitro • 4K / 1080p Cloud Drive",
+            name = "Cloud Febbox",
+            titleFormat = "Febbox • 4K / 1080p Cloud Drive",
             description = "Febbox Cloud Cache • Add Febbox cookie in settings for 4K",
             referer = "https://www.febbox.com/",
             isCloud = true,
-        ),
-        ServerDefinition(
-            id = "vid_hindi",
-            name = "VidHindi",
-            titleFormat = "VidHindi • 1080p Bollywood & Hindi Dubbed [Clean Audio]",
-            description = "Hindi Dual Audio • Indian Cinema Dedicated Server",
-            referer = "https://vidhindi.stream/",
-            isHindi = true,
-        ),
-        ServerDefinition(
-            id = "vid_emd",
-            name = "VidEmd",
-            titleFormat = "VidEmd • 1080p VidEmbed v1",
-            description = "VidEmbed Dedicated Edge Node",
-            referer = "https://2embed.cc/",
-        ),
-        ServerDefinition(
-            id = "vid_emt",
-            name = "VidEmt",
-            titleFormat = "VidEmt • 1080p VidEmbed v2",
-            description = "VidEmbed Adaptive Stream Engine",
-            referer = "https://www.2embed.stream/",
-        ),
-        ServerDefinition(
-            id = "vid_fk",
-            name = "VidFk",
-            titleFormat = "VidFk • 1080p VidFlix Direct",
-            description = "VidFlix Multi-Bitrate Cluster",
-            referer = "https://vidflix.to/",
-        ),
-        ServerDefinition(
-            id = "vid_mv",
-            name = "VidMv",
-            titleFormat = "VidMv • 1080p AutoEmbed VidMovie",
-            description = "AutoEmbed Edge Video Network",
-            referer = "https://autoembed.cc/",
-        ),
-        ServerDefinition(
-            id = "vid_pro",
-            name = "VidPro",
-            titleFormat = "VidPro • 1080p VidSrc Pro HD",
-            description = "VidSrc Pro Dedicated Pipeline",
-            referer = "https://vidsrc.pro/",
-        ),
-        ServerDefinition(
-            id = "vid_bo",
-            name = "VidBo",
-            titleFormat = "VidBo • 1080p VidBox Rive Stream",
-            description = "VidBox Low-Latency Cloud",
-            referer = "https://rive.stream/",
         ),
     )
 
@@ -296,48 +238,32 @@ object ZyloStreams {
             when (server.id) {
                 "vid_stpm" -> "https://vidlink.pro/tv/$effectiveId/$season/$episode"
                 "vixo" -> "https://vidsrc.xyz/embed/tv?tmdb=$effectiveId&season=$season&episode=$episode"
+                "vid_pro" -> "https://vidsrc.pro/embed/tv/$effectiveId/$season/$episode"
+                "vid_mv" -> "https://autoembed.cc/embed/tv/$effectiveId/$season/$episode"
+                "vid_fk" -> "https://embed.smashystream.com/playere.php?tmdb=$effectiveId&season=$season&episode=$episode"
+                "prvibd" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1&s=$season&e=$episode"
                 "vid_emd" -> if (!imdbId.isNullOrBlank()) "https://www.2embed.cc/embedtv/$imdbId&s=$season&e=$episode" else "https://www.2embed.cc/embedtv/$effectiveId&s=$season&e=$episode"
                 "vid_emt" -> "https://www.2embed.stream/embed/tv/$effectiveId/$season/$episode"
-                "vid_mv" -> "https://autoembed.cc/embed/tv/$effectiveId/$season/$episode"
-                "citadel" -> "https://moviesapi.club/tv/$effectiveId-$season-$episode"
-                "vid_fk" -> "https://embed.smashystream.com/playere.php?tmdb=$effectiveId&season=$season&episode=$episode"
-                "vid_bo" -> "https://rive.stream/embed?type=series&id=$effectiveId&season=$season&episode=$episode"
-                "prvibd" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1&s=$season&e=$episode"
-                "cast_vid" -> "https://castvid.net/embed/tv/$effectiveId/$season/$episode"
-                "pure_wave" -> "https://purewave.to/embed/tv/$effectiveId/$season/$episode"
-                "strem_fx" -> "https://stremfx.com/tv/$effectiveId/$season/$episode"
+                "embed_su" -> "https://embed.su/embed/tv/$effectiveId/$season/$episode"
+                "super_embed" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1&s=$season&e=$episode"
                 "ophm" -> "https://ophim1.com/tv/$effectiveId/$season/$episode"
-                "vid_pro" -> "https://vidsrc.pro/embed/tv/$effectiveId/$season/$episode"
                 "show_nitro" -> "https://febbox.com/embed/tv/$effectiveId/$season/$episode"
-                "nitro" -> "https://nitro.stream/embed/tv/$effectiveId/$season/$episode"
-                "mahalala" -> "https://mahalala.stream/embed/tv/$effectiveId/$season/$episode"
-                "multi_bill" -> "https://multibill.stream/embed/tv/$effectiveId/$season/$episode"
-                "aws_ply" -> "https://awsply.stream/embed/tv/$effectiveId/$season/$episode"
-                "vid_hindi" -> "https://vidhindi.stream/embed/tv/$effectiveId/$season/$episode"
                 else -> "https://vidlink.pro/tv/$effectiveId/$season/$episode"
             }
         } else {
             when (server.id) {
                 "vid_stpm" -> "https://vidlink.pro/movie/$effectiveId"
                 "vixo" -> "https://vidsrc.xyz/embed/movie?tmdb=$effectiveId"
+                "vid_pro" -> "https://vidsrc.pro/embed/movie/$effectiveId"
+                "vid_mv" -> "https://autoembed.cc/embed/movie/$effectiveId"
+                "vid_fk" -> "https://embed.smashystream.com/playere.php?tmdb=$effectiveId"
+                "prvibd" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1"
                 "vid_emd" -> if (!imdbId.isNullOrBlank()) "https://www.2embed.cc/embed/$imdbId" else "https://www.2embed.cc/embed/$effectiveId"
                 "vid_emt" -> "https://www.2embed.stream/embed/movie/$effectiveId"
-                "vid_mv" -> "https://autoembed.cc/embed/movie/$effectiveId"
-                "citadel" -> "https://moviesapi.club/movie/$effectiveId"
-                "vid_fk" -> "https://embed.smashystream.com/playere.php?tmdb=$effectiveId"
-                "vid_bo" -> "https://rive.stream/embed?type=movie&id=$effectiveId"
-                "prvibd" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1"
-                "cast_vid" -> "https://castvid.net/embed/movie/$effectiveId"
-                "pure_wave" -> "https://purewave.to/embed/movie/$effectiveId"
-                "strem_fx" -> "https://stremfx.com/movie/$effectiveId"
+                "embed_su" -> "https://embed.su/embed/movie/$effectiveId"
+                "super_embed" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1"
                 "ophm" -> "https://ophim1.com/movie/$effectiveId"
-                "vid_pro" -> "https://vidsrc.pro/embed/movie/$effectiveId"
                 "show_nitro" -> "https://febbox.com/embed/movie/$effectiveId"
-                "nitro" -> "https://nitro.stream/embed/movie/$effectiveId"
-                "mahalala" -> "https://mahalala.stream/embed/movie/$effectiveId"
-                "multi_bill" -> "https://multibill.stream/embed/movie/$effectiveId"
-                "aws_ply" -> "https://awsply.stream/embed/movie/$effectiveId"
-                "vid_hindi" -> "https://vidhindi.stream/embed/movie/$effectiveId"
                 else -> "https://vidlink.pro/movie/$effectiveId"
             }
         }

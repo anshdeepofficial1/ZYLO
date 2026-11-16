@@ -243,6 +243,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                         if (message != null && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
                             return@PlatformPlayerSurface
                         }
+                        if (message != null && tryFailoverToNextStream(message)) {
+                            return@PlatformPlayerSurface
+                        }
                         errorMessage = message
                         if (message != null) {
                             scrubbingPositionMs = null

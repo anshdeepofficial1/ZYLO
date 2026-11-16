@@ -65,7 +65,6 @@ class CatalogRepository {
         if (isCartoons) params.set("with_genres", "16,10751");
         else {
           params.set("with_original_language", language);
-          params.set("with_origin_country", "IN");
         }
         const json = await fetchTmdbDiscover({ mediaType: isCartoons ? "tv" : "movie", params, signal });
         const items = (Array.isArray(json?.results) ? json.results : []).map((m) => ({

@@ -16,150 +16,92 @@ import { DebridStreamPresentation } from "../../core/debrid/directDebridStreamPr
 
 const ZYLO_SERVERS = [
   {
-    id: "nitro",
-    name: "Nitro - [Multi-Lang]",
-    titleFormat: "Nitro [Multi-Lang] • 1080p Auto | Multi-Audio",
-    description: "Multi-Audio (Hindi • Tamil • Telugu • English) • Ultra Fast CDN",
-    referer: "https://nitro.stream/",
+    id: "vid_stpm",
+    name: "VidLink - [Multi-Lang]",
+    titleFormat: "VidLink [Multi-Lang] • 1080p Ultra Fast Direct",
+    description: "Multi-Audio (Hindi • English • Tamil • Telugu) • CloudFront CDN",
+    referer: "https://vidlink.pro/",
     isMultiLang: true
-  },
-  {
-    id: "mahalala",
-    name: "Mahalala - [Multi-Lang]",
-    titleFormat: "Mahalala [Multi-Lang] • 1080p South & Bollywood Cinema",
-    description: "Multi-Audio (Tamil • Telugu • Malayalam • Kannada • Hindi) • Direct",
-    referer: "https://mahalala.stream/",
-    isMultiLang: true
-  },
-  {
-    id: "multi_bill",
-    name: "Multi-bill-[Multi-Lang]",
-    titleFormat: "Multi-bill [Multi-Lang] • 1080p Dual Audio Master",
-    description: "High-Bandwidth Multi-Language Server",
-    referer: "https://multibill.stream/",
-    isMultiLang: true
-  },
-  {
-    id: "aws_ply",
-    name: "AwsPly-[Multi-Lang]",
-    titleFormat: "AwsPly [Multi-Lang] • CloudFront Global CDN",
-    description: "Low Latency • Adaptive Bitrate HLS (Multi-Audio)",
-    referer: "https://awsply.stream/",
-    isMultiLang: true
-  },
-  {
-    id: "cast_vid",
-    name: "CastVid",
-    titleFormat: "CastVid • 1080p Fast Direct Stream",
-    description: "CastVid Global Edge Network",
-    referer: "https://castvid.net/"
-  },
-  {
-    id: "strem_fx",
-    name: "StremFx",
-    titleFormat: "StremFx • 1080p High-Speed HLS",
-    description: "StreamFX Bufferless Edge Node",
-    referer: "https://stremfx.com/"
-  },
-  {
-    id: "citadel",
-    name: "Citadel",
-    titleFormat: "Citadel • 1080p Resilient Multi-Source",
-    description: "Citadel Resilient Cluster",
-    referer: "https://citadel.stream/"
-  },
-  {
-    id: "pure_wave",
-    name: "PureWave",
-    titleFormat: "PureWave • 1080p Clean Direct Stream",
-    description: "PureWave High-Performance Node",
-    referer: "https://purewave.to/"
   },
   {
     id: "vixo",
-    name: "Vixo",
-    titleFormat: "Vixo • 1080p / 720p Pro Stream",
-    description: "Vixo Multi-Source Fast Cluster",
-    referer: "https://vixo.to/"
+    name: "VidSrc - [Multi-Lang]",
+    titleFormat: "VidSrc [Multi-Lang] • 1080p High Speed Cluster",
+    description: "VidSrc Dedicated Global Streaming Engine",
+    referer: "https://vidsrc.xyz/",
+    isMultiLang: true
+  },
+  {
+    id: "vid_pro",
+    name: "VidSrc Pro",
+    titleFormat: "VidSrc Pro • 1080p Dedicated HD Node",
+    description: "High-Bandwidth Multi-Source Video Network",
+    referer: "https://vidsrc.pro/"
+  },
+  {
+    id: "vid_mv",
+    name: "AutoEmbed - [Multi-Lang]",
+    titleFormat: "AutoEmbed [Multi-Lang] • 1080p Adaptive HLS",
+    description: "Fast Multi-Language Direct Server",
+    referer: "https://autoembed.cc/",
+    isMultiLang: true
+  },
+  {
+    id: "vid_fk",
+    name: "SmashyStream",
+    titleFormat: "SmashyStream • 1080p / 720p Clean Direct",
+    description: "SmashyStream Low-Latency Edge Cluster",
+    referer: "https://embed.smashystream.com/"
   },
   {
     id: "prvibd",
-    name: "Prvibd",
-    titleFormat: "Prvibd • 1080p ProEmbed CDN",
-    description: "Private High-Speed Embed Server",
-    referer: "https://proembed.top/"
-  },
-  {
-    id: "ophm",
-    name: "Ophm",
-    titleFormat: "Ophm • OpenHLS Master Stream",
-    description: "Ophim Adaptive Media Network",
-    referer: "https://ophim1.com/"
-  },
-  {
-    id: "vid_stpm",
-    name: "VidStpM",
-    titleFormat: "VidStpM • VidStream Link Direct",
-    description: "VidLink High-Bandwidth Hub",
-    referer: "https://vidlink.pro/"
-  },
-  {
-    id: "show_nitro",
-    name: "ShowNitro",
-    titleFormat: "ShowNitro • 4K / 1080p Cloud Drive",
-    description: "Febbox Cloud Cache • Add Febbox cookie in settings for 4K",
-    referer: "https://www.febbox.com/",
-    isCloud: true
-  },
-  {
-    id: "vid_hindi",
-    name: "VidHindi",
-    titleFormat: "VidHindi • 1080p Bollywood & Hindi Dubbed [Clean Audio]",
-    description: "Hindi Dual Audio • Indian Cinema Dedicated Server",
-    referer: "https://vidhindi.stream/",
-    isHindi: true
+    name: "MultiEmbed",
+    titleFormat: "MultiEmbed • 1080p Multi-Source Stream",
+    description: "MultiEmbed High-Bandwidth Cluster",
+    referer: "https://multiembed.mov/"
   },
   {
     id: "vid_emd",
-    name: "VidEmd",
-    titleFormat: "VidEmd • 1080p VidEmbed v1",
-    description: "VidEmbed Dedicated Edge Node",
+    name: "2Embed",
+    titleFormat: "2Embed • 1080p Adaptive Stream Engine",
+    description: "2Embed Edge Video Network",
     referer: "https://2embed.cc/"
   },
   {
     id: "vid_emt",
-    name: "VidEmt",
-    titleFormat: "VidEmt • 1080p VidEmbed v2",
-    description: "VidEmbed Adaptive Stream Engine",
+    name: "2Embed Stream",
+    titleFormat: "2Embed Stream • 1080p Direct Node",
+    description: "2Embed Stream Dedicated Cluster",
     referer: "https://www.2embed.stream/"
   },
   {
-    id: "vid_fk",
-    name: "VidFk",
-    titleFormat: "VidFk • 1080p VidFlix Direct",
-    description: "VidFlix Multi-Bitrate Cluster",
-    referer: "https://vidflix.to/"
+    id: "embed_su",
+    name: "EmbedSu",
+    titleFormat: "EmbedSu • 1080p Fast Direct Stream",
+    description: "EmbedSu Bufferless Edge Server",
+    referer: "https://embed.su/"
   },
   {
-    id: "vid_mv",
-    name: "VidMv",
-    titleFormat: "VidMv • 1080p AutoEmbed VidMovie",
-    description: "AutoEmbed Edge Video Network",
-    referer: "https://autoembed.cc/"
+    id: "super_embed",
+    name: "SuperEmbed",
+    titleFormat: "SuperEmbed • 1080p Global Edge Network",
+    description: "SuperEmbed High-Performance Cluster",
+    referer: "https://superembed.stream/"
   },
   {
-    id: "vid_pro",
-    name: "VidPro",
-    titleFormat: "VidPro • 1080p VidSrc Pro HD",
-    description: "VidSrc Pro Dedicated Pipeline",
-    referer: "https://vidsrc.pro/"
+    id: "ophm",
+    name: "Ophim",
+    titleFormat: "Ophim • OpenHLS Master Stream",
+    description: "Ophim Adaptive Media Network",
+    referer: "https://ophim1.com/"
   },
   {
-    id: "vid_bo",
-    name: "VidBo",
-    titleFormat: "VidBo • 1080p VidBox Rive Stream",
-    description: "VidBox Low-Latency Cloud",
-    referer: "https://rive.stream/"
+    id: "show_nitro",
+    name: "Cloud Febbox",
+    titleFormat: "Febbox • 4K / 1080p Cloud Drive",
+    description: "Febbox Cloud Cache • Add Febbox cookie in settings for 4K",
+    referer: "https://www.febbox.com/",
+    isCloud: true
   }
 ];
 
@@ -171,48 +113,32 @@ function buildZyloServerUrl(server, isTv, tmdbId, imdbId, season, episode) {
     switch (server.id) {
       case "vid_stpm": return `https://vidlink.pro/tv/${effectiveId}/${s}/${e}`;
       case "vixo": return `https://vidsrc.xyz/embed/tv?tmdb=${effectiveId}&season=${s}&episode=${e}`;
+      case "vid_pro": return `https://vidsrc.pro/embed/tv/${effectiveId}/${s}/${e}`;
+      case "vid_mv": return `https://autoembed.cc/embed/tv/${effectiveId}/${s}/${e}`;
+      case "vid_fk": return `https://embed.smashystream.com/playere.php?tmdb=${effectiveId}&season=${s}&episode=${e}`;
+      case "prvibd": return `https://multiembed.mov/?video_id=${effectiveId}&tmdb=1&s=${s}&e=${e}`;
       case "vid_emd": return imdbId ? `https://www.2embed.cc/embedtv/${imdbId}&s=${s}&e=${e}` : `https://www.2embed.cc/embedtv/${effectiveId}&s=${s}&e=${e}`;
       case "vid_emt": return `https://www.2embed.stream/embed/tv/${effectiveId}/${s}/${e}`;
-      case "vid_mv": return `https://autoembed.cc/embed/tv/${effectiveId}/${s}/${e}`;
-      case "citadel": return `https://moviesapi.club/tv/${effectiveId}-${s}-${e}`;
-      case "vid_fk": return `https://embed.smashystream.com/playere.php?tmdb=${effectiveId}&season=${s}&episode=${e}`;
-      case "vid_bo": return `https://rive.stream/embed?type=series&id=${effectiveId}&season=${s}&episode=${e}`;
-      case "prvibd": return `https://multiembed.mov/?video_id=${effectiveId}&tmdb=1&s=${s}&e=${e}`;
-      case "cast_vid": return `https://castvid.net/embed/tv/${effectiveId}/${s}/${e}`;
-      case "pure_wave": return `https://purewave.to/embed/tv/${effectiveId}/${s}/${e}`;
-      case "strem_fx": return `https://stremfx.com/tv/${effectiveId}/${s}/${e}`;
+      case "embed_su": return `https://embed.su/embed/tv/${effectiveId}/${s}/${e}`;
+      case "super_embed": return `https://multiembed.mov/?video_id=${effectiveId}&tmdb=1&s=${s}&e=${e}`;
       case "ophm": return `https://ophim1.com/tv/${effectiveId}/${s}/${e}`;
-      case "vid_pro": return `https://vidsrc.pro/embed/tv/${effectiveId}/${s}/${e}`;
       case "show_nitro": return `https://febbox.com/embed/tv/${effectiveId}/${s}/${e}`;
-      case "nitro": return `https://nitro.stream/embed/tv/${effectiveId}/${s}/${e}`;
-      case "mahalala": return `https://mahalala.stream/embed/tv/${effectiveId}/${s}/${e}`;
-      case "multi_bill": return `https://multibill.stream/embed/tv/${effectiveId}/${s}/${e}`;
-      case "aws_ply": return `https://awsply.stream/embed/tv/${effectiveId}/${s}/${e}`;
-      case "vid_hindi": return `https://vidhindi.stream/embed/tv/${effectiveId}/${s}/${e}`;
       default: return `https://vidlink.pro/tv/${effectiveId}/${s}/${e}`;
     }
   } else {
     switch (server.id) {
       case "vid_stpm": return `https://vidlink.pro/movie/${effectiveId}`;
       case "vixo": return `https://vidsrc.xyz/embed/movie?tmdb=${effectiveId}`;
+      case "vid_pro": return `https://vidsrc.pro/embed/movie/${effectiveId}`;
+      case "vid_mv": return `https://autoembed.cc/embed/movie/${effectiveId}`;
+      case "vid_fk": return `https://embed.smashystream.com/playere.php?tmdb=${effectiveId}`;
+      case "prvibd": return `https://multiembed.mov/?video_id=${effectiveId}&tmdb=1`;
       case "vid_emd": return imdbId ? `https://www.2embed.cc/embed/${imdbId}` : `https://www.2embed.cc/embed/${effectiveId}`;
       case "vid_emt": return `https://www.2embed.stream/embed/movie/${effectiveId}`;
-      case "vid_mv": return `https://autoembed.cc/embed/movie/${effectiveId}`;
-      case "citadel": return `https://moviesapi.club/movie/${effectiveId}`;
-      case "vid_fk": return `https://embed.smashystream.com/playere.php?tmdb=${effectiveId}`;
-      case "vid_bo": return `https://rive.stream/embed?type=movie&id=${effectiveId}`;
-      case "prvibd": return `https://multiembed.mov/?video_id=${effectiveId}&tmdb=1`;
-      case "cast_vid": return `https://castvid.net/embed/movie/${effectiveId}`;
-      case "pure_wave": return `https://purewave.to/embed/movie/${effectiveId}`;
-      case "strem_fx": return `https://stremfx.com/movie/${effectiveId}`;
+      case "embed_su": return `https://embed.su/embed/movie/${effectiveId}`;
+      case "super_embed": return `https://multiembed.mov/?video_id=${effectiveId}&tmdb=1`;
       case "ophm": return `https://ophim1.com/movie/${effectiveId}`;
-      case "vid_pro": return `https://vidsrc.pro/embed/movie/${effectiveId}`;
       case "show_nitro": return `https://febbox.com/embed/movie/${effectiveId}`;
-      case "nitro": return `https://nitro.stream/embed/movie/${effectiveId}`;
-      case "mahalala": return `https://mahalala.stream/embed/movie/${effectiveId}`;
-      case "multi_bill": return `https://multibill.stream/embed/movie/${effectiveId}`;
-      case "aws_ply": return `https://awsply.stream/embed/movie/${effectiveId}`;
-      case "vid_hindi": return `https://vidhindi.stream/embed/movie/${effectiveId}`;
       default: return `https://vidlink.pro/movie/${effectiveId}`;
     }
   }

@@ -60,9 +60,9 @@ const DEFAULTS = {
   },
   audioAmplificationDb: 0,
   persistAudioAmplification: false,
-  // Auto stream selection (matches the Android TV app). When the mode is not
-  // MANUAL, pressing play auto-selects a stream and plays it after a countdown.
-  streamAutoPlayMode: "MANUAL",
+  // Auto stream selection (matches the Android TV app). Default to FIRST_STREAM
+  // so pressing Play directly finds and plays the stream immediately.
+  streamAutoPlayMode: "FIRST_STREAM",
   // AUTO is evaluated on this device, never persisted as a device capability.
   streamAutoPlayHdrPreference: "AUTO",
   streamAutoPlaySource: "ALL_SOURCES",
@@ -73,7 +73,7 @@ const DEFAULTS = {
   streamAutoPlayReuseBingeGroup: true,
   streamReuseLastLinkEnabled: false,
   streamReuseLastLinkCacheHours: 24,
-  streamAutoPlayTimeoutSeconds: 3,
+  streamAutoPlayTimeoutSeconds: 0,
   // Which playback implementation draws the picture. Opt-in and never assumed:
   // the movi engine needs WebCodecs and a CORS-readable source, so a profile
   // that never asked for it must keep the built-in player.

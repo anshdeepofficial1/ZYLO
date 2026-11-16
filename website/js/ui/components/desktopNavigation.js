@@ -53,7 +53,7 @@ function renderIcon(item) {
 function renderProfile(profile, selectedRoute) {
   const profileState = profile || {};
   if (profileState.guest) {
-    const label = t("account_signin_action", "Sign In");
+    const label = t("account_signin_title", "Sign In");
     return `<button class="desktop-navigation-item desktop-navigation-profile desktop-navigation-signin" type="button" data-desktop-route="authSignIn" aria-label="${escapeHtml(label)}"><svg class="desktop-navigation-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></svg><span class="desktop-navigation-label">${escapeHtml(label)}</span></button>`;
   }
   const label = t("sidebar.profileFallback", "Profile");

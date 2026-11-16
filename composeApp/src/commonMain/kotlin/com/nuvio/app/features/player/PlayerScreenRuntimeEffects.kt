@@ -126,6 +126,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         credentialRefreshJob?.cancel()
         credentialRefreshJob = null
         credentialRefreshAttemptedSourceUrl = null
+        failedStreamUrls.clear()
         initialLoadCompleted = false
         lastProgressPersistEpochMs = 0L
         previousIsPlaying = false
@@ -1054,3 +1055,21 @@ private fun findCredentialRefreshCandidate(
 
 private const val CREDENTIAL_REFRESH_POLL_COUNT = 30
 private const val CREDENTIAL_REFRESH_POLL_INTERVAL_MS = 500L
+
+internal fun PlayerScreenRuntime.tryFailoverToNextStream(message: String?): Boolean {
+    val failedUrl = activeSourceUrl ?: return false
+    failedStreamUrls.add(failedUrl)
+    removeFailedStreamFromCache()
+
+    val groups = PlayerStreamsRepository.sourceState.value.groups
+    val allStreams = groups.flatMap { it.streams }
+    val candidate = allStreams.firstOrNull { s ->
+        val u = s.playableDirectUrl
+        !u.isNullOrBlank() && u !in failedStreamUrls && u != failedUrl
+    } ?: return false
+
+    errorMessage = null
+    controlsVisible = false
+    switchToSource(candidate, saveForReuse = false)
+    return true
+}
