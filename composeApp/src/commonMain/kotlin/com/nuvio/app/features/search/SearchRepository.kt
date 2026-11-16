@@ -25,6 +25,9 @@ import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.filterReleasedItems
 import com.nuvio.app.core.poster.withCustomPosterUrls
+import com.nuvio.app.features.tmdb.TmdbMetadataService
+import com.nuvio.app.features.tmdb.TmdbService
+import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -91,7 +94,9 @@ object SearchRepository {
         val addonManifestErrorMessage = enabledAddons.firstEnabledManifestError()
         val activeAddons = enabledAddons.filter { it.manifest != null }
         val serverSearches = ServerCatalog.searchTargets()
-        if (activeAddons.isEmpty() && serverSearches.isEmpty()) {
+        val canSearchPeople = TmdbSettingsRepository.snapshot().enabled &&
+            TmdbSettingsRepository.effectiveApiKey().isNotBlank()
+        if (activeAddons.isEmpty() && serverSearches.isEmpty() && !canSearchPeople) {
             activeJob?.cancel()
             lastRequestKey = null
             _uiState.value = SearchUiState(
@@ -110,7 +115,7 @@ object SearchRepository {
             addons = activeAddons,
             query = normalizedQuery,
         )
-        if (requests.isEmpty() && serverSearches.isEmpty()) {
+        if (requests.isEmpty() && serverSearches.isEmpty() && !canSearchPeople) {
             activeJob?.cancel()
             lastRequestKey = null
             _uiState.value = SearchUiState(
@@ -126,6 +131,8 @@ object SearchRepository {
             append(HomeCatalogSettingsRepository.snapshot().hideUnreleasedContent)
             append('|')
             append(hasPendingAddonManifests)
+            append("|people:")
+            append(canSearchPeople)
             append('|')
             append(
                 requests.joinToString(separator = "|") { request ->
@@ -147,7 +154,14 @@ object SearchRepository {
                             }
                         }
                     }
-                }
+                } +
+                listOfNotNull(
+                    if (canSearchPeople) {
+                        suspend { personFilmographySection(normalizedQuery) }
+                    } else {
+                        null
+                    },
+                )
         if (canReuseRequestState(forceRefresh, requestKey, lastRequestKey)) return
         lastRequestKey = requestKey
 
@@ -630,6 +644,37 @@ object SearchRepository {
             )
         }
     }
+}
+
+private suspend fun personFilmographySection(query: String): HomeCatalogSection {
+    val personId = TmdbService.searchPerson(query)
+        ?: error("No matching actor or crew member")
+    val person = TmdbMetadataService.fetchPersonDetail(personId)
+        ?: error("Person filmography is unavailable")
+    val credits = (person.movieCredits + person.tvCredits)
+        .distinctBy { preview -> "${preview.type}:${preview.id}" }
+        .sortedWith(
+            compareByDescending<MetaPreview> { preview -> preview.popularity ?: 0.0 }
+                .thenByDescending { preview -> preview.voteCount ?: 0 },
+        )
+        .take(40)
+    require(credits.isNotEmpty()) { "No filmography results" }
+
+    return HomeCatalogSection(
+        key = "tmdb:person:$personId:$query",
+        title = "Movies & series featuring ${person.name}",
+        subtitle = "Actor and cast filmography",
+        addonName = "TMDB People",
+        target = CatalogTarget.Addon(
+            manifestUrl = "",
+            contentType = "movie",
+            catalogId = "tmdb_person_$personId",
+            supportsPagination = false,
+        ),
+        items = credits,
+        availableItemCount = credits.size,
+        hasMore = false,
+    )
 }
 
 private data class IndexedSearchResult(

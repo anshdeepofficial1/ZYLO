@@ -3,111 +3,24 @@ package com.nuvio.app.features.streams
 import com.nuvio.app.features.addons.httpRequestRaw
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.tmdb.TmdbService
+import io.ktor.http.decodeURLQueryComponent
 import kotlinx.coroutines.withTimeoutOrNull
 
+/**
+ * ZYLO's first-party discovery entry point.
+ *
+ * The provider response contains player-ready media URLs. Embed pages must never be copied into
+ * [StreamItem.url]: ExoPlayer then receives HTML and reports an unrecognised file format. When no
+ * direct result is available we return an empty group and let installed addons/plugins continue,
+ * instead of advertising an HTML page as a video.
+ */
 object ZyloStreams {
-
-    data class ServerDefinition(
-        val id: String,
-        val name: String,
-        val titleFormat: String,
-        val description: String,
-        val referer: String,
-        val isMultiLang: Boolean = false,
-        val isHindi: Boolean = false,
-        val isCloud: Boolean = false,
-    )
-
-    val SERVERS: List<ServerDefinition> = listOf(
-        ServerDefinition(
-            id = "vid_stpm",
-            name = "VidLink - [Multi-Lang]",
-            titleFormat = "VidLink [Multi-Lang] • 1080p Ultra Fast Direct",
-            description = "Multi-Audio (Hindi • English • Tamil • Telugu) • CloudFront CDN",
-            referer = "https://vidlink.pro/",
-            isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "vixo",
-            name = "VidSrc - [Multi-Lang]",
-            titleFormat = "VidSrc [Multi-Lang] • 1080p High Speed Cluster",
-            description = "VidSrc Dedicated Global Streaming Engine",
-            referer = "https://vidsrc.xyz/",
-            isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "vid_pro",
-            name = "VidSrc Pro",
-            titleFormat = "VidSrc Pro • 1080p Dedicated HD Node",
-            description = "High-Bandwidth Multi-Source Video Network",
-            referer = "https://vidsrc.pro/",
-        ),
-        ServerDefinition(
-            id = "vid_mv",
-            name = "AutoEmbed - [Multi-Lang]",
-            titleFormat = "AutoEmbed [Multi-Lang] • 1080p Adaptive HLS",
-            description = "Fast Multi-Language Direct Server",
-            referer = "https://autoembed.cc/",
-            isMultiLang = true,
-        ),
-        ServerDefinition(
-            id = "vid_fk",
-            name = "SmashyStream",
-            titleFormat = "SmashyStream • 1080p / 720p Clean Direct",
-            description = "SmashyStream Low-Latency Edge Cluster",
-            referer = "https://embed.smashystream.com/",
-        ),
-        ServerDefinition(
-            id = "prvibd",
-            name = "MultiEmbed",
-            titleFormat = "MultiEmbed • 1080p Multi-Source Stream",
-            description = "MultiEmbed High-Bandwidth Cluster",
-            referer = "https://multiembed.mov/",
-        ),
-        ServerDefinition(
-            id = "vid_emd",
-            name = "2Embed",
-            titleFormat = "2Embed • 1080p Adaptive Stream Engine",
-            description = "2Embed Edge Video Network",
-            referer = "https://2embed.cc/",
-        ),
-        ServerDefinition(
-            id = "vid_emt",
-            name = "2Embed Stream",
-            titleFormat = "2Embed Stream • 1080p Direct Node",
-            description = "2Embed Stream Dedicated Cluster",
-            referer = "https://www.2embed.stream/",
-        ),
-        ServerDefinition(
-            id = "embed_su",
-            name = "EmbedSu",
-            titleFormat = "EmbedSu • 1080p Fast Direct Stream",
-            description = "EmbedSu Bufferless Edge Server",
-            referer = "https://embed.su/",
-        ),
-        ServerDefinition(
-            id = "super_embed",
-            name = "SuperEmbed",
-            titleFormat = "SuperEmbed • 1080p Global Edge Network",
-            description = "SuperEmbed High-Performance Cluster",
-            referer = "https://superembed.stream/",
-        ),
-        ServerDefinition(
-            id = "ophm",
-            name = "Ophm",
-            titleFormat = "Ophm • OpenHLS Master Stream",
-            description = "Ophim Adaptive Media Network",
-            referer = "https://ophim1.com/",
-        ),
-        ServerDefinition(
-            id = "show_nitro",
-            name = "Cloud Febbox",
-            titleFormat = "Febbox • 4K / 1080p Cloud Drive",
-            description = "Febbox Cloud Cache • Add Febbox cookie in settings for 4K",
-            referer = "https://www.febbox.com/",
-            isCloud = true,
-        ),
-    )
+    private const val addonName = "ZYLO Direct"
+    private const val addonId = "zylo_servers"
+    private const val requestTimeoutMs = 8_000L
+    private const val defaultUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     suspend fun resolveDirectStreams(
         type: String,
@@ -116,156 +29,211 @@ object ZyloStreams {
         season: Int? = null,
         episode: Int? = null,
     ): AddonStreamGroup {
-        val meta = MetaDetailsRepository.peek(type = type, id = parentMetaId ?: videoId.substringBefore(":"))
-        val rawId = videoId.removePrefix("tmdb:").removePrefix("movie:").removePrefix("series:").substringBefore(":")
-        
-        var imdbId = if (rawId.startsWith("tt", ignoreCase = true)) rawId else meta?.imdbId
-        var tmdbId = if (rawId.all { it.isDigit() }) rawId else null
+        val meta = MetaDetailsRepository.peek(
+            type = type,
+            id = parentMetaId ?: videoId.substringBefore(":"),
+        )
+        val rawId = videoId
+            .removePrefix("tmdb:")
+            .removePrefix("movie:")
+            .removePrefix("series:")
+            .substringBefore(":")
 
-        if (tmdbId == null && imdbId != null) {
+        var imdbId = rawId.takeIf { it.startsWith("tt", ignoreCase = true) } ?: meta?.imdbId
+        var tmdbId = rawId.takeIf { it.all(Char::isDigit) }
+
+        if (tmdbId == null && !imdbId.isNullOrBlank()) {
             tmdbId = TmdbService.ensureTmdbId(imdbId, type)
         }
-        if (imdbId == null && tmdbId != null && tmdbId.all { it.isDigit() }) {
+        if (imdbId == null && !tmdbId.isNullOrBlank()) {
             imdbId = tmdbId.toIntOrNull()?.let { TmdbService.tmdbToImdb(it, type) }
         }
 
-        val s = season ?: 1
-        val e = episode ?: 1
-        val isTv = type.equals("series", ignoreCase = true) || type.equals("tv", ignoreCase = true) || season != null
-        val streamType = if (isTv) "series" else "movie"
+        val resolvedSeason = season ?: 1
+        val resolvedEpisode = episode ?: 1
+        val isSeries = type.equals("series", ignoreCase = true) ||
+            type.equals("tv", ignoreCase = true) || season != null
+        val streamType = if (isSeries) "series" else "movie"
 
-        // Candidate query IDs to try on direct extractors (PlavioHD / NetMirror / MovieBox)
-        val queryIds = mutableListOf<String>()
-        if (isTv) {
-            if (!imdbId.isNullOrBlank()) queryIds.add("$imdbId:$s:$e")
-            if (!tmdbId.isNullOrBlank()) queryIds.add("tmdb:$tmdbId:$s:$e")
-            if (rawId.isNotBlank() && rawId != imdbId && rawId != tmdbId) queryIds.add("$rawId:$s:$e")
-        } else {
-            if (!imdbId.isNullOrBlank()) queryIds.add(imdbId)
-            if (!tmdbId.isNullOrBlank()) queryIds.add("tmdb:$tmdbId")
-            if (rawId.isNotBlank() && rawId != imdbId && rawId != tmdbId) queryIds.add(rawId)
-        }
+        val queryIds = buildQueryIds(
+            isSeries = isSeries,
+            rawId = rawId,
+            imdbId = imdbId,
+            tmdbId = tmdbId,
+            season = resolvedSeason,
+            episode = resolvedEpisode,
+        )
 
-        var fetchedStreams: List<StreamItem> = emptyList()
-
-        for (qid in queryIds) {
-            val url = "https://hd.plavio.site/stream/$streamType/$qid.json"
-            val response = withTimeoutOrNull(4500L) {
+        var directStreams = emptyList<StreamItem>()
+        for (queryId in queryIds) {
+            val endpoint = "https://hd.plavio.site/stream/$streamType/$queryId.json"
+            val response = withTimeoutOrNull(requestTimeoutMs) {
                 runCatching {
                     httpRequestRaw(
                         method = "GET",
-                        url = url,
+                        url = endpoint,
                         headers = mapOf(
                             "Accept" to "application/json",
-                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                            "User-Agent" to defaultUserAgent,
                         ),
                         body = "",
                     )
                 }.getOrNull()
             }
-            if (response != null && response.status in 200..299 && response.body.isNotBlank()) {
-                val parsed = StreamParser.parse(response.body, "ZYLO Servers", "zylo_servers")
-                val validDirect = parsed.filter { it.url != null && it.url.isNotBlank() }
-                if (validDirect.isNotEmpty()) {
-                    fetchedStreams = validDirect
-                    break
-                }
-            }
-        }
+            if (response == null || response.status !in 200..299 || response.body.isBlank()) continue
 
-        val items = mutableListOf<StreamItem>()
-        val defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-        SERVERS.forEachIndexed { index, server ->
-            val directStream = fetchedStreams.getOrNull(index)
-            val fallbackUrl = buildServerUrl(server, isTv, tmdbId, imdbId, s, e)
-            val streamUrl = directStream?.url?.takeIf { it.isNotBlank() } ?: fallbackUrl
-
-            val title = if (directStream != null) {
-                "${server.name} • ${directStream.title ?: directStream.name ?: "1080p Fast Direct"}"
-            } else {
-                server.titleFormat
-            }
-
-            val desc = if (directStream?.description?.isNotBlank() == true) {
-                "${server.description} • ${directStream.description}"
-            } else {
-                server.description
-            }
-
-            items.add(
-                StreamItem(
-                    name = server.name,
-                    title = title,
-                    description = desc,
-                    url = streamUrl,
-                    externalUrl = fallbackUrl,
-                    sourceName = "ZYLO Servers",
-                    addonName = "ZYLO Servers",
-                    addonId = "zylo_servers",
-                    streamType = "direct",
-                    behaviorHints = StreamBehaviorHints(
-                        bingeGroup = "zylo_servers|${server.id}",
-                        proxyHeaders = StreamProxyHeaders(
-                            request = mapOf(
-                                "User-Agent" to defaultUserAgent,
-                                "Referer" to server.referer,
-                            )
-                        ),
-                    ),
-                )
-            )
+            val parsed = runCatching {
+                StreamParser.parse(response.body, addonName, addonId)
+            }.getOrDefault(emptyList())
+            directStreams = prepareDirectStreams(parsed)
+            if (directStreams.isNotEmpty()) break
         }
 
         return AddonStreamGroup(
-            addonName = "ZYLO Servers",
-            addonId = "zylo_servers",
-            streams = items,
+            addonName = addonName,
+            addonId = addonId,
+            streams = directStreams,
             isLoading = false,
         )
     }
 
-    private fun buildServerUrl(
-        server: ServerDefinition,
-        isTv: Boolean,
-        tmdbId: String?,
+    internal fun buildQueryIds(
+        isSeries: Boolean,
+        rawId: String,
         imdbId: String?,
+        tmdbId: String?,
         season: Int,
         episode: Int,
-    ): String {
-        val effectiveId = tmdbId ?: imdbId ?: "0"
-        return if (isTv) {
-            when (server.id) {
-                "vid_stpm" -> "https://vidlink.pro/tv/$effectiveId/$season/$episode"
-                "vixo" -> "https://vidsrc.xyz/embed/tv?tmdb=$effectiveId&season=$season&episode=$episode"
-                "vid_pro" -> "https://vidsrc.pro/embed/tv/$effectiveId/$season/$episode"
-                "vid_mv" -> "https://autoembed.cc/embed/tv/$effectiveId/$season/$episode"
-                "vid_fk" -> "https://embed.smashystream.com/playere.php?tmdb=$effectiveId&season=$season&episode=$episode"
-                "prvibd" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1&s=$season&e=$episode"
-                "vid_emd" -> if (!imdbId.isNullOrBlank()) "https://www.2embed.cc/embedtv/$imdbId&s=$season&e=$episode" else "https://www.2embed.cc/embedtv/$effectiveId&s=$season&e=$episode"
-                "vid_emt" -> "https://www.2embed.stream/embed/tv/$effectiveId/$season/$episode"
-                "embed_su" -> "https://embed.su/embed/tv/$effectiveId/$season/$episode"
-                "super_embed" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1&s=$season&e=$episode"
-                "ophm" -> "https://ophim1.com/tv/$effectiveId/$season/$episode"
-                "show_nitro" -> "https://febbox.com/embed/tv/$effectiveId/$season/$episode"
-                else -> "https://vidlink.pro/tv/$effectiveId/$season/$episode"
-            }
+    ): List<String> = buildList {
+        fun addUnique(value: String?) {
+            value?.takeIf { it.isNotBlank() && it !in this@buildList }?.let(::add)
+        }
+        if (isSeries) {
+            addUnique(imdbId?.let { "$it:$season:$episode" })
+            addUnique(tmdbId?.let { "tmdb:$it:$season:$episode" })
+            addUnique(rawId.takeIf { it != imdbId && it != tmdbId }?.let { "$it:$season:$episode" })
         } else {
-            when (server.id) {
-                "vid_stpm" -> "https://vidlink.pro/movie/$effectiveId"
-                "vixo" -> "https://vidsrc.xyz/embed/movie?tmdb=$effectiveId"
-                "vid_pro" -> "https://vidsrc.pro/embed/movie/$effectiveId"
-                "vid_mv" -> "https://autoembed.cc/embed/movie/$effectiveId"
-                "vid_fk" -> "https://embed.smashystream.com/playere.php?tmdb=$effectiveId"
-                "prvibd" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1"
-                "vid_emd" -> if (!imdbId.isNullOrBlank()) "https://www.2embed.cc/embed/$imdbId" else "https://www.2embed.cc/embed/$effectiveId"
-                "vid_emt" -> "https://www.2embed.stream/embed/movie/$effectiveId"
-                "embed_su" -> "https://embed.su/embed/movie/$effectiveId"
-                "super_embed" -> "https://multiembed.mov/?video_id=$effectiveId&tmdb=1"
-                "ophm" -> "https://ophim1.com/movie/$effectiveId"
-                "show_nitro" -> "https://febbox.com/embed/movie/$effectiveId"
-                else -> "https://vidlink.pro/movie/$effectiveId"
-            }
+            addUnique(imdbId)
+            addUnique(tmdbId?.let { "tmdb:$it" })
+            addUnique(rawId.takeIf { it != imdbId && it != tmdbId })
         }
     }
+
+    internal fun prepareDirectStreams(streams: List<StreamItem>): List<StreamItem> =
+        streams
+            .asSequence()
+            .filter { stream -> stream.url.isDirectHttpUrl() }
+            .distinctBy { stream -> stream.url?.trim() }
+            .sortedBy(::reliabilityScore)
+            .mapIndexed { index, stream ->
+                val providerKey = directProviderKey(stream, index)
+                stream.copy(
+                    externalUrl = null,
+                    sourceName = addonName,
+                    addonName = addonName,
+                    addonId = addonId,
+                    streamType = stream.streamType ?: inferStreamType(stream),
+                    behaviorHints = stream.behaviorHints.copy(
+                        bingeGroup = stream.behaviorHints.bingeGroup
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "zylo_direct|$providerKey",
+                    ),
+                )
+            }
+            .toList()
+
+    private fun String?.isDirectHttpUrl(): Boolean {
+        val value = this?.trim().orEmpty()
+        return value.startsWith("https://", ignoreCase = true) ||
+            value.startsWith("http://", ignoreCase = true)
+    }
+
+    private fun inferStreamType(stream: StreamItem): String? {
+        val text = streamSearchText(stream)
+        return when {
+            ".m3u8" in text -> "application/x-mpegURL"
+            ".mpd" in text -> "application/dash+xml"
+            ".mp4" in text -> "video/mp4"
+            ".mkv" in text -> "video/x-matroska"
+            else -> null
+        }
+    }
+
+    /** Lower is more likely to start quickly on both ExoPlayer and browser remux paths. */
+    internal fun reliabilityScore(stream: StreamItem): Int {
+        val text = streamSearchText(stream)
+        var score = 100
+        if ("1080p" in text) score -= 18
+        if ("720p" in text) score -= 12
+        if ("480p" in text) score -= 4
+        if ("2160p" in text || "4k" in text) score += 28
+        if (".mp4" in text) score -= 18
+        if ("x264" in text || "h264" in text || "avc" in text) score -= 14
+        if ("aac" in text) score -= 8
+        if (".mkv" in text) score += 5
+        if ("x265" in text || "h265" in text || "hevc" in text) score += 10
+        if ("truehd" in text || " dts" in text || "atmos" in text) score += 8
+        if (" hdr" in text || "dolby vision" in text || " dv " in text) score += 5
+        score += parsedSizeGigabytes(text)?.let { size ->
+            when {
+                size <= 2.5 -> -8
+                size <= 5.0 -> -4
+                size >= 25.0 -> 18
+                size >= 12.0 -> 10
+                else -> 0
+            }
+        } ?: 0
+        return score
+    }
+
+    private fun parsedSizeGigabytes(text: String): Double? =
+        Regex("""(\d+(?:\.\d+)?)\s*gb\b""")
+            .findAll(text)
+            .mapNotNull { match -> match.groupValues.getOrNull(1)?.toDoubleOrNull() }
+            .minOrNull()
+
+    private fun streamSearchText(stream: StreamItem): String = listOfNotNull(
+        stream.name,
+        stream.title,
+        stream.description,
+        stream.behaviorHints.filename,
+        stream.url,
+    ).joinToString(" ").lowercase()
+
+    private fun directProviderKey(stream: StreamItem, index: Int): String {
+        val text = streamSearchText(stream)
+        val knownProvider = listOf(
+            "movieshunt",
+            "movies4u",
+            "4khdhub",
+            "hdhub4u",
+            "moviebox",
+            "netmirror",
+            "spacedom",
+            "vidrock",
+            "cinejoy",
+            "vegamovies",
+            "dexter",
+        ).firstOrNull(text::contains)
+        if (knownProvider != null) return knownProvider
+
+        val nestedUrl = stream.url
+            ?.substringAfter("url=", missingDelimiterValue = "")
+            ?.substringBefore('&')
+            ?.takeIf { it.isNotBlank() }
+            ?.let { encoded -> runCatching { encoded.decodeURLQueryComponent() }.getOrNull() }
+        val host = hostOf(nestedUrl).ifBlank { hostOf(stream.url) }
+        return host
+            .removePrefix("www.")
+            .substringBefore(':')
+            .takeIf { it.isNotBlank() }
+            ?: "source_$index"
+    }
+
+    private fun hostOf(url: String?): String = url
+        ?.substringAfter("://", missingDelimiterValue = "")
+        ?.substringBefore('/')
+        ?.substringBefore('?')
+        ?.lowercase()
+        .orEmpty()
 }

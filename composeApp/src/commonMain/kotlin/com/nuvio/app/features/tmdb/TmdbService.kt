@@ -2,6 +2,7 @@ package com.nuvio.app.features.tmdb
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.httpGetText
+import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
@@ -144,7 +145,11 @@ internal fun buildTmdbUrl(
         append(endpoint.removePrefix("/"))
         if (params.isNotEmpty()) {
             append("?")
-            append(params.entries.joinToString("&") { (key, value) -> "$key=$value" })
+            append(
+                params.entries.joinToString("&") { (key, value) ->
+                    "${key.encodeURLParameter()}=${value.encodeURLParameter()}"
+                },
+            )
         }
     }
 }

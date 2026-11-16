@@ -49,6 +49,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.features.downloads.DownloadOptionsDialog
+import com.nuvio.app.features.downloads.DownloadsRepository
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -128,6 +129,7 @@ import com.nuvio.app.features.details.components.rememberRatingState
 import com.nuvio.app.features.details.components.SeasonWatchedActionSheet
 import com.nuvio.app.features.details.components.TabletArtworkBackdropAlignment
 import com.nuvio.app.features.details.components.TabletDetailBackdrop
+import com.nuvio.app.features.streams.ZyloStreams
 import com.nuvio.app.features.details.components.TabletDetailHero
 import com.nuvio.app.features.details.components.TrailerPlayerPopup
 import com.nuvio.app.features.home.MetaPreview
@@ -1047,9 +1049,70 @@ fun MetaDetailsScreen(
                         title = meta.name,
                         subtitle = downloadTargetSubtitle,
                         onDismiss = { showDownloadOptionsDialog = false },
-                        onConfirm = { quality, server, language, includeSubs, rememberChoice ->
+                        onConfirm = { quality, _, language, _, _ ->
                             showDownloadOptionsDialog = false
-                            NuvioToastController.show("Starting $quality download for ${meta.name}...")
+                            detailsScope.launch {
+                                val isSeriesDownload = meta.type == "series" || hasEpisodes
+                                val targetVideoId = if (isSeriesDownload) {
+                                    seriesStreamVideoId ?: seriesAction?.videoId ?: meta.videos.firstOrNull()?.id
+                                } else {
+                                    meta.id
+                                }
+                                if (targetVideoId.isNullOrBlank()) {
+                                    NuvioToastController.show("No downloadable episode found")
+                                    return@launch
+                                }
+                                val seasonNumber = seriesAction?.seasonNumber.takeIf { isSeriesDownload }
+                                val episodeNumber = seriesAction?.episodeNumber.takeIf { isSeriesDownload }
+                                val group = ZyloStreams.resolveDirectStreams(
+                                    type = meta.type,
+                                    videoId = targetVideoId,
+                                    parentMetaId = meta.id,
+                                    season = seasonNumber,
+                                    episode = episodeNumber,
+                                )
+                                val qualityToken = quality.lowercase()
+                                val languageToken = language.substringBefore(" (").lowercase()
+                                val stream = group.streams.firstOrNull { candidate ->
+                                    val description = listOfNotNull(
+                                        candidate.name,
+                                        candidate.title,
+                                        candidate.description,
+                                        candidate.behaviorHints.filename,
+                                    ).joinToString(" ").lowercase()
+                                    qualityToken in description &&
+                                        (languageToken.startsWith("default") || languageToken in description)
+                                } ?: group.streams.firstOrNull { candidate ->
+                                    val description = listOfNotNull(
+                                        candidate.name,
+                                        candidate.title,
+                                        candidate.description,
+                                        candidate.behaviorHints.filename,
+                                    ).joinToString(" ").lowercase()
+                                    qualityToken in description
+                                } ?: group.streams.firstOrNull()
+
+                                if (stream == null) {
+                                    NuvioToastController.show("No downloadable source is available")
+                                    return@launch
+                                }
+                                val result = DownloadsRepository.enqueueFromStream(
+                                    contentType = meta.type,
+                                    videoId = targetVideoId,
+                                    parentMetaId = meta.id,
+                                    parentMetaType = meta.type,
+                                    title = meta.name,
+                                    logo = meta.logo,
+                                    poster = meta.poster,
+                                    background = meta.background,
+                                    seasonNumber = seasonNumber,
+                                    episodeNumber = episodeNumber,
+                                    episodeTitle = seriesAction?.episodeTitle,
+                                    episodeThumbnail = seriesAction?.episodeThumbnail,
+                                    stream = stream,
+                                )
+                                NuvioToastController.show(result.toastMessage())
+                            }
                         },
                     )
                 }

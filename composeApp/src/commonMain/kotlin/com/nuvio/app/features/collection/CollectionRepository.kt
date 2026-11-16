@@ -62,7 +62,12 @@ object CollectionRepository {
             rawCollectionsJson = parsed
             val decoded = json.decodeFromJsonElement<List<Collection>>(parsed)
             // Regional categories are home catalogs with poster cards, not collection folders
-            val filtered = decoded.filterNot { it.id == "zylo_bollywood" || it.id == "zylo_south" || it.id == "zylo_punjabi" }
+            val filtered = decoded.filterNot {
+                it.id == "zylo_bollywood" ||
+                    it.id == "zylo_hollywood" ||
+                    it.id == "zylo_south" ||
+                    it.id == "zylo_punjabi"
+            }
             val normalized = normalizeCollections(filtered, source = "local storage")
             _collections.value = CollectionMobileSettingsRepository.applyToCollections(normalized)
             if (filtered.size != decoded.size) {

@@ -13,7 +13,14 @@ import { PLUGIN_LIMITS } from "../../core/player/pluginWorkerRuntime.js";
 import { TmdbService } from "../../core/tmdb/tmdbService.js";
 import { LocalDebridAvailabilityService } from "../../core/debrid/localDebridAvailabilityService.js";
 import { DebridStreamPresentation } from "../../core/debrid/directDebridStreamPresentation.js";
+import {
+  ZYLO_DIRECT_ADDON,
+  buildZyloDirectQueryIds,
+  prepareZyloDirectStreams
+} from "./zyloDirectStreams.js";
 
+/* Legacy embed-page definitions deliberately retained as migration documentation only.
+ * These URLs return HTML players, not media, and must never become stream.url values.
 const ZYLO_SERVERS = [
   {
     id: "vid_stpm",
@@ -143,6 +150,7 @@ function buildZyloServerUrl(server, isTv, tmdbId, imdbId, season, episode) {
     }
   }
 }
+*/
 
 class StreamRepository {
   async getStreamsFromAddon(baseUrl, type, videoId) {
@@ -383,9 +391,16 @@ class StreamRepository {
       if (/^tt\d+$/i.test(part)) imdbId = part;
       else if (/^\d+$/.test(part) && !tmdbId) tmdbId = part;
     }
-    if (parts.length >= 3 && !isNaN(parts[1]) && !isNaN(parts[2])) {
-      season = Number(parts[1]);
-      episode = Number(parts[2]);
+    const embeddedEpisodeParts = parts[0]?.toLowerCase() === "tmdb" ? parts.slice(2) : parts.slice(1);
+    if (
+      options?.season == null &&
+      options?.episode == null &&
+      embeddedEpisodeParts.length >= 2 &&
+      !isNaN(embeddedEpisodeParts[0]) &&
+      !isNaN(embeddedEpisodeParts[1])
+    ) {
+      season = Number(embeddedEpisodeParts[0]);
+      episode = Number(embeddedEpisodeParts[1]);
     }
     if (options.imdbId && !imdbId) imdbId = options.imdbId;
     if (options.tmdbId && !tmdbId) tmdbId = String(options.tmdbId);
@@ -399,56 +414,51 @@ class StreamRepository {
       } catch (_) {}
     }
 
-    const effectiveId = tmdbId || imdbId || rawVideoId;
-    if (!effectiveId) return null;
+    if (!(tmdbId || imdbId || rawVideoId)) return null;
 
-    const streams = ZYLO_SERVERS.map((server) => {
-      const serverUrl = buildZyloServerUrl(server, isTv, tmdbId, imdbId, season, episode);
-      return {
-        id: `zylo_server_${server.id}_${effectiveId}`,
-        name: server.name,
-        title: server.titleFormat,
-        description: server.description,
-        url: serverUrl,
-        externalUrl: serverUrl,
-        externalFrameUrl: serverUrl,
-        quality: "1080p",
-        addonId: "zylo-servers",
-        addonName: "ZYLO Servers",
-        addonBaseUrl: "https://zylo.app",
-        addonOrderIndex: -1,
-        sourceName: "ZYLO Servers",
-        sourceProviderId: server.id,
-        streamType: "direct",
-        streamOrigin: {
-          kind: "server",
-          addonId: "zylo-servers",
-          addonName: "ZYLO Servers",
-          sourceProviderId: server.id
-        },
-        behaviorHints: {
-          notWebReady: false,
-          bingeGroup: `zylo-servers|${server.id}`,
-          proxyHeaders: {
-            request: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Referer": server.referer
-            }
-          }
-        }
-      };
+    const queryIds = buildZyloDirectQueryIds({
+      isTv,
+      rawId: parts[0] === "tmdb" ? tmdbId : parts[0] || rawVideoId,
+      imdbId,
+      tmdbId,
+      season,
+      episode
     });
+    const streamType = isTv ? "series" : "movie";
+    let streams = [];
+    for (const queryId of queryIds) {
+      if (options.signal?.aborted) break;
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      options.signal?.addEventListener("abort", abort, { once: true });
+      const timer = setTimeout(abort, 8000);
+      const endpoint = `${ZYLO_DIRECT_ADDON.endpoint}/${streamType}/${encodeURIComponent(queryId)}.json`;
+      const result = await safeApiCall(() =>
+        StreamApi.getStreams(endpoint, {
+          signal: controller.signal,
+          headers: { Accept: "application/json" }
+        })
+      );
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
+      if (result.status !== "success") continue;
+      const mapped = (result.data?.streams || []).map((stream) => this.mapStream(stream));
+      streams = prepareZyloDirectStreams(mapped);
+      if (streams.length) break;
+    }
+
+    if (!streams.length) return null;
 
     return {
-      addonId: "zylo-servers",
-      addonBaseUrl: "https://zylo.app",
-      addonName: "ZYLO Servers",
+      addonId: ZYLO_DIRECT_ADDON.id,
+      addonBaseUrl: ZYLO_DIRECT_ADDON.endpoint,
+      addonName: ZYLO_DIRECT_ADDON.name,
       addonLogo: null,
       addonOrderIndex: -1,
       streamOrigin: {
         kind: "server",
-        addonId: "zylo-servers",
-        addonName: "ZYLO Servers"
+        addonId: ZYLO_DIRECT_ADDON.id,
+        addonName: ZYLO_DIRECT_ADDON.name
       },
       streams
     };

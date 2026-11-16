@@ -10,6 +10,7 @@ export function guestProfilePresentation() {
 const categories = [
   { key:"popular", title:"Popular Movies", language:"" },
   { key:"bollywood", title:"Bollywood & Hindi Hits", language:"hi" },
+  { key:"hollywood", title:"Hollywood Movies", language:"en", country:"US" },
   { key:"south", title:"South Indian Cinema", language:"te|ta|ml|kn" },
   { key:"punjabi", title:"Punjabi Cinema", language:"pa" }
 ];
@@ -55,7 +56,7 @@ export async function loadGuestHomeRows({ signal, query = "", onRow } = {}) {
   }
   const results=await Promise.allSettled(categories.map(async category=>{
     const params=new URLSearchParams({api_key:TMDB_API_KEY,sort_by:"popularity.desc",page:"1",include_adult:"false"});
-    if(category.language){ params.set("with_original_language",category.language);params.set("with_origin_country","IN"); }
+    if(category.language){ params.set("with_original_language",category.language);params.set("with_origin_country",category.country || "IN"); }
     const payload=await fetchTmdbDiscover({params,signal,fetchImpl:fetchGuestMetadata});
     const result=row(category.key,category.title,payload.results.map(mapPublicMovie).filter(Boolean));
     onRow?.(result);

@@ -56,6 +56,17 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             descriptorSignature = "zylo_bollywood",
         ),
         HomeCatalogDefinition(
+            key = "zylo:movie:hollywood",
+            defaultTitle = "Hollywood Movies",
+            catalogName = "Hollywood Movies",
+            addonName = "ZYLO Regional",
+            manifestUrl = "",
+            type = "movie",
+            catalogId = "zylo_hollywood",
+            supportsPagination = true,
+            descriptorSignature = "zylo_hollywood",
+        ),
+        HomeCatalogDefinition(
             key = "zylo:movie:south",
             defaultTitle = "South Indian Cinema",
             catalogName = "South Indian Cinema",
@@ -117,7 +128,14 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             }
     }
 
-    return (regionalDefinitions + addonDefinitions).distinctBy(HomeCatalogDefinition::key) + ServerCatalog.homeDefinitions()
+    // Keep the first three source catalogs intact, then place ZYLO's regional shelves in the
+    // requested fourth position onward. Fresh profiles therefore see Bollywood, Hollywood and
+    // South cinema together without displacing their primary addon rows.
+    val regionalInsertIndex = minOf(3, addonDefinitions.size)
+    val orderedDefinitions = addonDefinitions.toMutableList().apply {
+        addAll(regionalInsertIndex, regionalDefinitions)
+    }
+    return orderedDefinitions.distinctBy(HomeCatalogDefinition::key) + ServerCatalog.homeDefinitions()
 }
 
 private fun buildHomeCatalogDescriptorSignature(

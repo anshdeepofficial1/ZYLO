@@ -23,6 +23,7 @@ data class CachedStreamLink(
     val contentLanguage: String? = null,
     val addonLogo: String? = null,
     val streamDescription: String? = null,
+    val playbackConfirmed: Boolean = false,
 )
 
 internal expect fun epochMs(): Long
@@ -64,6 +65,7 @@ object StreamLinkCacheRepository {
         contentLanguage: String? = null,
         addonLogo: String? = null,
         streamDescription: String? = null,
+        playbackConfirmed: Boolean = false,
     ) {
         if (url.isNotBlank() && url.hasLikelyExpiringPlaybackCredentials()) {
             remove(contentKey)
@@ -89,6 +91,7 @@ object StreamLinkCacheRepository {
             contentLanguage = contentLanguage,
             addonLogo = addonLogo,
             streamDescription = streamDescription,
+            playbackConfirmed = playbackConfirmed,
         )
         val payload = json.encodeToString(CachedStreamLink.serializer(), entry)
         StreamLinkCacheStorage.saveEntry(hashedKey(contentKey), payload)
@@ -120,7 +123,28 @@ object StreamLinkCacheRepository {
             StreamLinkCacheStorage.removeEntry(hashedKey(contentKey))
             return null
         }
+        if (!entry.playbackConfirmed) {
+            return null
+        }
         return entry
+    }
+
+    /** Marks a staged selection reusable only after the player has actually started. */
+    fun confirm(contentKey: String) {
+        val hashed = hashedKey(contentKey)
+        val raw = StreamLinkCacheStorage.loadEntry(hashed) ?: return
+        val existing = runCatching {
+            json.decodeFromString(CachedStreamLink.serializer(), raw)
+        }.getOrNull() ?: return
+        if (existing.playbackConfirmed) return
+        val updated = existing.copy(
+            cachedAtMs = epochMs(),
+            playbackConfirmed = true,
+        )
+        StreamLinkCacheStorage.saveEntry(
+            hashed,
+            json.encodeToString(CachedStreamLink.serializer(), updated),
+        )
     }
 
     /**

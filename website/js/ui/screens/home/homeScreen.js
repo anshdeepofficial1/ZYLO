@@ -9832,13 +9832,21 @@ export const HomeScreen = {
 
     const addons = await addonRepository.getInstalledAddons();
     this.collections = CollectionsStore.get();
-    const catalogDescriptors = [
+    const regionalCatalogDescriptors = [
       {
         addonBaseUrl: "https://zylo.app",
         addonId: "zylo-bollywood",
         addonName: "Bollywood & Hindi Hits",
         catalogId: "zylo_bollywood",
         catalogName: "Bollywood & Hindi Hits",
+        type: "movie"
+      },
+      {
+        addonBaseUrl: "https://zylo.app",
+        addonId: "zylo-hollywood",
+        addonName: "Hollywood Movies",
+        catalogId: "zylo_hollywood",
+        catalogName: "Hollywood Movies",
         type: "movie"
       },
       {
@@ -9867,6 +9875,8 @@ export const HomeScreen = {
       }
     ];
 
+    const catalogDescriptors = [];
+
     addons.forEach((addon) => {
       addon.catalogs
         .filter((catalog) => !catalogRequiresExtras(catalog))
@@ -9881,6 +9891,8 @@ export const HomeScreen = {
           });
         });
     });
+    // Put the built-in regional shelves at positions four onward on fresh profiles.
+    catalogDescriptors.splice(Math.min(3, catalogDescriptors.length), 0, ...regionalCatalogDescriptors);
 
     // Installed-addon state can contain the same manifest catalog more than
     // once. Collapse only descriptors that would issue the exact same request;

@@ -251,6 +251,7 @@ object HomeRepository {
             } else {
                 val lang = when (catalogId) {
                     "zylo_bollywood" -> "hi"
+                    "zylo_hollywood" -> "en"
                     "zylo_south" -> "te|ta|ml|kn"
                     "zylo_punjabi" -> "pa"
                     else -> "hi"
@@ -262,6 +263,7 @@ object HomeRepository {
                     sortBy = TmdbCollectionSort.POPULAR_DESC.value,
                     filters = TmdbCollectionFilters(
                         withOriginalLanguage = lang,
+                        withOriginCountry = if (catalogId == "zylo_hollywood") "US" else "IN",
                     ),
                 )
             }

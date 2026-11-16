@@ -104,11 +104,37 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         }
     }
 
-    LaunchedEffect(currentStreamBingeGroup, currentStreamFilename, currentStreamInfoHash, parentMetaId) {
+    LaunchedEffect(
+        playbackSnapshot.isPlaying,
+        currentStreamBingeGroup,
+        currentStreamFilename,
+        currentStreamInfoHash,
+        parentMetaId,
+    ) {
         val bg = currentStreamBingeGroup
-        if (bg != null && parentMetaId.isNotBlank()) {
+        if (playbackSnapshot.isPlaying && bg != null && parentMetaId.isNotBlank()) {
             BingeGroupCacheRepository.save(parentMetaId, bg, currentStreamFilename, currentStreamInfoHash)
         }
+    }
+
+    LaunchedEffect(
+        playbackSnapshot.isPlaying,
+        activeSourceIdentityKey,
+        activeVideoId,
+        activeSeasonNumber,
+        activeEpisodeNumber,
+    ) {
+        val currentVideoId = activeVideoId
+        if (!playbackSnapshot.isPlaying || currentVideoId.isNullOrBlank()) return@LaunchedEffect
+        StreamLinkCacheRepository.confirm(
+            StreamLinkCacheRepository.contentKey(
+                type = contentType ?: parentMetaType,
+                videoId = currentVideoId,
+                parentMetaId = parentMetaId,
+                season = activeSeasonNumber,
+                episode = activeEpisodeNumber,
+            ),
+        )
     }
 
     LaunchedEffect(activePlaybackKey, activeSourceUrl, activeSourceAudioUrl, activeSourceHeaders, activeSourceResponseHeaders) {
@@ -899,6 +925,14 @@ internal fun PlayerScreenRuntime.removeFailedStreamFromCache() {
         episode = activeEpisodeNumber,
     )
     StreamLinkCacheRepository.remove(cacheKey)
+    val failedBingeGroup = currentStreamBingeGroup
+    if (
+        parentMetaId.isNotBlank() &&
+        !failedBingeGroup.isNullOrBlank() &&
+        BingeGroupCacheRepository.get(parentMetaId) == failedBingeGroup
+    ) {
+        BingeGroupCacheRepository.remove(parentMetaId)
+    }
 }
 
 internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message: String?): Boolean {

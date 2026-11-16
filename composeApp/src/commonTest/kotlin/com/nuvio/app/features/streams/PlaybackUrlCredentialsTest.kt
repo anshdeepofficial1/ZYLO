@@ -18,4 +18,12 @@ class PlaybackUrlCredentialsTest {
         assertFalse("https://example.com/video.mp4?quality=1080p&format=mp4".hasLikelyExpiringPlaybackCredentials())
         assertFalse("https://example.com/video.mkv?api_key=static".hasLikelyExpiringPlaybackCredentials())
     }
+
+    @Test
+    fun detectsCredentialsInsideNestedResolverUrls() {
+        assertTrue(
+            "https://resolver.example/extract?url=https%3A%2F%2Fcdn.example%2Fmovie.mkv%3Ftoken%3Dabc%26expires%3D1234"
+                .hasLikelyExpiringPlaybackCredentials(),
+        )
+    }
 }

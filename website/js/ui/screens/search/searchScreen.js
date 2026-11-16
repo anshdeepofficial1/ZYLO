@@ -57,6 +57,10 @@ import {
 import { filterReleasedItems } from "../../../core/util/releaseInfoUtils.js";
 import { findVerifiedEditions } from "../../../core/tmdb/verifiedEditions.js";
 import {
+  sortPersonCreditsByPopularity,
+  TmdbPersonService
+} from "../../../core/tmdb/tmdbPersonService.js";
+import {
   buildSearchScheduleIndices,
   buildSearchTargets,
   catalogSupportsExtra
@@ -737,6 +741,40 @@ export const SearchScreen = {
     const batchSize = getSearchCatalogBatchSize();
     const itemLimit = getSearchResultsPerRow();
     const responses = new Array(searchableCatalogs.length);
+    const personFilmographyPromise = (async () => {
+      const personId = await TmdbPersonService.searchPersonId(query);
+      if (!personId || token !== this.loadToken) return null;
+      const person = await TmdbPersonService.fetchPerson({ personId, name: query });
+      if (!person?.credits?.length || token !== this.loadToken) return null;
+      const items = sortPersonCreditsByPopularity(person.credits)
+        .slice(0, itemLimit)
+        .map((credit) => ({
+          id: credit.itemId,
+          type: credit.type,
+          name: credit.title,
+          poster: credit.poster,
+          releaseInfo: String(credit.releaseDate || "").slice(0, 4),
+          released: credit.releaseDate,
+          rating: credit.rating,
+          popularity: credit.popularity,
+          addonId: "tmdb-people",
+          addonName: "TMDB People"
+        }));
+      return items.length
+        ? {
+            title: `Movies & series featuring ${person.name || query}`,
+            subtitle: "Actor and cast filmography",
+            type: "movie",
+            addonBaseUrl: "",
+            addonId: "tmdb-people",
+            addonName: "TMDB People",
+            catalogId: `tmdb_person_${personId}`,
+            catalogName: person.name || query,
+            hasMore: false,
+            items
+          }
+        : null;
+    })().catch(() => null);
     let nextScheduleIndex = 0;
     let publishedFirstResults = false;
     const runCatalogSearch = async (catalog) => {
@@ -829,7 +867,9 @@ export const SearchScreen = {
     );
     await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 
-    return buildRows();
+    const rows = buildRows();
+    const personFilmography = await personFilmographyPromise;
+    return personFilmography ? [personFilmography, ...rows] : rows;
   },
 
   renderRows() {

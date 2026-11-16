@@ -59,12 +59,13 @@ class CatalogRepository {
         const apiKey = getEffectiveTmdbApiKey();
         if (!apiKey) throw new Error("TMDB API key is not configured");
         const isCartoons = catalogId === "zylo_cartoons";
-        const language = catalogId === "zylo_south" ? "te|ta|ml|kn" : catalogId === "zylo_punjabi" ? "pa" : "hi";
+        const language = catalogId === "zylo_south" ? "te|ta|ml|kn" : catalogId === "zylo_punjabi" ? "pa" : catalogId === "zylo_hollywood" ? "en" : "hi";
         const page = Math.floor(skip / 20) + 1;
         const params = new URLSearchParams({ api_key: apiKey, page: String(page), sort_by: "popularity.desc" });
         if (isCartoons) params.set("with_genres", "16,10751");
         else {
           params.set("with_original_language", language);
+          params.set("with_origin_country", catalogId === "zylo_hollywood" ? "US" : "IN");
         }
         const json = await fetchTmdbDiscover({ mediaType: isCartoons ? "tv" : "movie", params, signal });
         const items = (Array.isArray(json?.results) ? json.results : []).map((m) => ({

@@ -71,7 +71,7 @@ const DEFAULTS = {
   streamAutoPlayRegex: "",
   streamAutoPlayPreferBingeGroupForNextEpisode: true,
   streamAutoPlayReuseBingeGroup: true,
-  streamReuseLastLinkEnabled: false,
+  streamReuseLastLinkEnabled: true,
   streamReuseLastLinkCacheHours: 24,
   streamAutoPlayTimeoutSeconds: 0,
   // Which playback implementation draws the picture. Opt-in and never assumed:
