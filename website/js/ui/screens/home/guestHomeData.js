@@ -23,11 +23,30 @@ export function mapPublicMovie(item) {
 function row(key,title,items) {
   return { addonId:"public-tmdb", catalogId:key, catalogName:title, type:"movie", result:{ status:"success", data:{items} } };
 }
+// The deployed website uses a fixed, same-origin TMDB metadata endpoint.
+// The direct API remains available for local development and other platforms.
+async function fetchGuestMetadata(url, options = {}) {
+  const upstream = new URL(url);
+  if (globalThis.location?.hostname === "zyloweb.vercel.app" || globalThis.location?.hostname?.endsWith(".vercel.app")) {
+    const route = upstream.pathname.endsWith("/search/movie") ? "search" : "discover";
+    const params = new URLSearchParams(upstream.search);
+    params.delete("api_key");
+    params.set("route", route);
+    try {
+      const response = await fetch("/api/public-catalog?" + params, options);
+      if (response.ok && (response.headers.get("content-type") || "").includes("application/json")) return response;
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+    }
+  }
+  return fetch(url, options);
+}
+
 export async function loadGuestHomeRows({ signal, query = "", onRow } = {}) {
   if (!TMDB_API_KEY) throw Error("Public catalog is not configured");
   if(query.trim()) {
     const params=new URLSearchParams({api_key:TMDB_API_KEY,query:query.trim(),include_adult:"false"});
-    const response=await fetch("https://api.themoviedb.org/3/search/movie?"+params,{signal});
+    const response=await fetchGuestMetadata("https://api.themoviedb.org/3/search/movie?"+params,{signal});
     if(!response.ok) throw Error("Movie search unavailable");
     const payload=await response.json();
     const result=row("search","Search results",(payload.results||[]).map(mapPublicMovie).filter(Boolean));
@@ -37,7 +56,7 @@ export async function loadGuestHomeRows({ signal, query = "", onRow } = {}) {
   const results=await Promise.allSettled(categories.map(async category=>{
     const params=new URLSearchParams({api_key:TMDB_API_KEY,sort_by:"popularity.desc",page:"1",include_adult:"false"});
     if(category.language){ params.set("with_original_language",category.language);params.set("with_origin_country","IN"); }
-    const payload=await fetchTmdbDiscover({params,signal});
+    const payload=await fetchTmdbDiscover({params,signal,fetchImpl:fetchGuestMetadata});
     const result=row(category.key,category.title,payload.results.map(mapPublicMovie).filter(Boolean));
     onRow?.(result);
     return result;
