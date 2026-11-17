@@ -56,17 +56,6 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             descriptorSignature = "zylo_bollywood",
         ),
         HomeCatalogDefinition(
-            key = "zylo:movie:hollywood",
-            defaultTitle = "Hollywood Movies",
-            catalogName = "Hollywood Movies",
-            addonName = "ZYLO Regional",
-            manifestUrl = "",
-            type = "movie",
-            catalogId = "zylo_hollywood",
-            supportsPagination = true,
-            descriptorSignature = "zylo_hollywood",
-        ),
-        HomeCatalogDefinition(
             key = "zylo:movie:south",
             defaultTitle = "South Indian Cinema",
             catalogName = "South Indian Cinema",
@@ -98,6 +87,17 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             catalogId = "zylo_cartoons",
             supportsPagination = true,
             descriptorSignature = "zylo_cartoons",
+        ),
+        HomeCatalogDefinition(
+            key = "zylo:movie:hollywood",
+            defaultTitle = "Hollywood Movies",
+            catalogName = "Hollywood Movies",
+            addonName = "ZYLO Regional",
+            manifestUrl = "",
+            type = "movie",
+            catalogId = "zylo_hollywood",
+            supportsPagination = true,
+            descriptorSignature = "zylo_hollywood",
         ),
     )
 

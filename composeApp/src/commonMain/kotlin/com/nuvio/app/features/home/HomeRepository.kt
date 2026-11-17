@@ -293,11 +293,11 @@ object HomeRepository {
                     manifestUrl = "",
                     contentType = type,
                     catalogId = catalogId,
-                    supportsPagination = false,
+                    supportsPagination = true,
                 ),
                 items = items.take(HOME_CATALOG_PREVIEW_FETCH_LIMIT),
                 availableItemCount = items.size,
-                hasMore = false,
+                hasMore = page.nextSkip != null,
             )
         }
         CustomPosterUrlRepository.ensureLoaded()

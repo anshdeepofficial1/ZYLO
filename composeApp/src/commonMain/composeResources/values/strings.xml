@@ -2257,6 +2257,10 @@
     <string name="player_addon_subtitle_display_format">%1$s (%2$s)</string>
     <string name="player_error_mpv_unavailable">MPV player engine not available. Please rebuild the app.</string>
     <string name="player_error_unable_to_play_stream">Unable to play this stream.</string>
+    <string name="player_error_network_connection">Unable to connect to streaming server. Please check your connection or try another source.</string>
+    <string name="player_error_stream_forbidden">This stream source is currently protected or has expired. Please try another source.</string>
+    <string name="player_error_stream_unsupported_format">This video format or codec is not supported by your device.</string>
+    <string name="player_error_stream_unavailable">The selected stream is currently unavailable. Please select another source.</string>
     <string name="plugins_badge_disabled">Plugins disabled</string>
     <string name="plugins_badge_enabled">Plugins enabled</string>
     <string name="plugins_badge_providers">%1$d providers</string>

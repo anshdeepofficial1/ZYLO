@@ -712,7 +712,8 @@ private fun ExoPlayerSurface(
                 latestOnError.value(null)
                 return
             }
-            latestOnError.value(error.localizedMessage ?: runBlocking { getString(Res.string.player_unable_to_play_stream) })
+            val rawMsg = error.localizedMessage ?: error.message
+            latestOnError.value(PlaybackErrorMessages.toUserFriendlyMessageSync(rawMsg))
         }
 
         val listener = object : Player.Listener {
@@ -1518,11 +1519,10 @@ private fun LibmpvPlayerSurface(
                                 )
                                 val details = synchronized(recentErrorLogs) { recentErrorLogs.toList() } +
                                     listOfNotNull(fileError?.trim()?.takeIf { it.isNotEmpty() })
-                                latestOnError.value(
-                                    details.distinct().joinToString("\n").ifEmpty {
-                                        getString(Res.string.player_unable_to_play_stream)
-                                    },
-                                )
+                                val rawMsg = details.distinct().joinToString("\n").ifEmpty {
+                                    fileError?.trim().orEmpty()
+                                }
+                                latestOnError.value(PlaybackErrorMessages.toUserFriendlyMessageSync(rawMsg))
                             }
                         }
                     }
@@ -1650,7 +1650,7 @@ private fun LibmpvPlayerSurface(
                         initialize(viewContext.filesDir.path, viewContext.cacheDir.path)
                     }.onFailure { error ->
                         Log.e(TAG, "Failed to initialize libmpv", error)
-                        latestOnError.value(error.localizedMessage ?: "libmpv unavailable")
+                        latestOnError.value(PlaybackErrorMessages.toUserFriendlyMessageSync(error.localizedMessage ?: "libmpv unavailable"))
                     }
                     playerViewRef = this
                 }

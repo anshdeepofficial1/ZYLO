@@ -238,15 +238,13 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                         if (message != null && tryRefreshCredentialedSourceAfterError(message)) {
                             return@PlatformPlayerSurface
                         }
-                        // Engine failover is decided here, driven by its own player setting;
-                        // the engine's own decoder/MIME retries have already been tried.
-                        if (message != null && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
-                            return@PlatformPlayerSurface
-                        }
                         if (message != null && tryFailoverToNextStream(message)) {
                             return@PlatformPlayerSurface
                         }
-                        errorMessage = message
+                        if (message != null && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
+                            return@PlatformPlayerSurface
+                        }
+                        errorMessage = PlaybackErrorMessages.toUserFriendlyMessageSync(message)
                         if (message != null) {
                             scrubbingPositionMs = null
                             controlsVisible = !playerControlsLocked

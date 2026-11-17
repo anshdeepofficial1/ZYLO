@@ -61,13 +61,9 @@ object CollectionRepository {
             val parsed = json.parseToJsonElement(payload)
             rawCollectionsJson = parsed
             val decoded = json.decodeFromJsonElement<List<Collection>>(parsed)
-            // Regional categories are home catalogs with poster cards, not collection folders
-            val filtered = decoded.filterNot {
-                it.id == "zylo_bollywood" ||
-                    it.id == "zylo_hollywood" ||
-                    it.id == "zylo_south" ||
-                    it.id == "zylo_punjabi"
-            }
+            // Regional categories are home catalogs with poster cards, not collection folders.
+            // Aggressively purge any legacy regional collections or folders.
+            val filtered = decoded.filterNot { it.isLegacyRegionalCollection() }
             val normalized = normalizeCollections(filtered, source = "local storage")
             _collections.value = CollectionMobileSettingsRepository.applyToCollections(normalized)
             if (filtered.size != decoded.size) {
@@ -118,7 +114,8 @@ object CollectionRepository {
 
     fun setCollections(collections: List<Collection>) {
         ensureLoaded()
-        val normalized = normalizeCollections(collections, source = "setCollections")
+        val filtered = collections.filterNot { it.isLegacyRegionalCollection() }
+        val normalized = normalizeCollections(filtered, source = "setCollections")
         _collections.value = CollectionMobileSettingsRepository.applyToCollections(normalized)
         persist()
     }
@@ -353,3 +350,18 @@ private fun CollectionImportModelError.localizedMessage(): String =
                 getString(Res.string.collections_import_error_source_blank_fields, sourceIndex, folderTitle)
         }
     }
+
+internal fun Collection.isLegacyRegionalCollection(): Boolean {
+    val idLower = id.lowercase()
+    val titleLower = title.lowercase()
+    if (idLower.startsWith("zylo_") || idLower.contains("bollywood") || idLower.contains("south") || idLower.contains("punjabi") || idLower.contains("hollywood")) {
+        return true
+    }
+    if (titleLower.contains("bollywood") || titleLower.contains("south indian") || titleLower.contains("punjabi cinema")) {
+        return true
+    }
+    return folders.any { f ->
+        val fTitle = f.title.lowercase()
+        fTitle.contains("bollywood") || fTitle.contains("south indian") || fTitle.contains("punjabi cinema")
+    }
+}

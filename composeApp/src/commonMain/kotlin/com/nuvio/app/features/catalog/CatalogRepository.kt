@@ -3,7 +3,11 @@ package com.nuvio.app.features.catalog
 import com.nuvio.app.core.poster.CustomPosterUrlRepository
 import com.nuvio.app.core.poster.withCustomPosterUrls
 import com.nuvio.app.features.collection.CollectionRepository
+import com.nuvio.app.features.collection.CollectionSource
+import com.nuvio.app.features.collection.TmdbCollectionFilters
+import com.nuvio.app.features.collection.TmdbCollectionSort
 import com.nuvio.app.features.collection.TmdbCollectionSourceResolver
+import com.nuvio.app.features.collection.TmdbCollectionSourceType
 import com.nuvio.app.features.collection.catalogRouteKey
 import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.servers.ServerCatalog
@@ -142,14 +146,24 @@ object CatalogRepository {
         activeJob = scope.launch {
             runCatching {
                 when (val target = request.target) {
-                    is CatalogTarget.Addon -> fetchCatalogPage(
-                        manifestUrl = target.manifestUrl,
-                        type = target.contentType,
-                        catalogId = target.catalogId,
-                        genre = target.genre,
-                        skip = requestedSkip.takeIf { it > 0 },
-                        forceRefresh = forceRefresh,
-                    )
+                    is CatalogTarget.Addon -> {
+                        if (target.manifestUrl.isEmpty() && target.catalogId.startsWith("zylo_")) {
+                            fetchRegionalCatalogPage(
+                                catalogId = target.catalogId,
+                                type = target.contentType,
+                                skip = requestedSkip,
+                            )
+                        } else {
+                            fetchCatalogPage(
+                                manifestUrl = target.manifestUrl,
+                                type = target.contentType,
+                                catalogId = target.catalogId,
+                                genre = target.genre,
+                                skip = requestedSkip.takeIf { it > 0 },
+                                forceRefresh = forceRefresh,
+                            )
+                        }
+                    }
 
                     is CatalogTarget.CollectionSource -> fetchCollectionSourcePage(
                         target = target,
@@ -237,6 +251,45 @@ private suspend fun fetchCollectionSourcePage(
         source.isTrakt -> TraktPublicListSourceResolver.resolve(source = source, page = page)
         else -> error(getString(Res.string.catalog_load_failed))
     }
+}
+
+private suspend fun fetchRegionalCatalogPage(
+    catalogId: String,
+    type: String,
+    skip: Int,
+): CatalogPage {
+    val isCartoons = catalogId == "zylo_cartoons"
+    val pageNumber = (skip / 20) + 1
+    val source = if (isCartoons) {
+        CollectionSource(
+            provider = "tmdb",
+            tmdbSourceType = TmdbCollectionSourceType.DISCOVER.name,
+            mediaType = "tv",
+            sortBy = TmdbCollectionSort.POPULAR_DESC.value,
+            filters = TmdbCollectionFilters(
+                withGenres = "16,10751",
+            ),
+        )
+    } else {
+        val lang = when (catalogId) {
+            "zylo_bollywood" -> "hi"
+            "zylo_hollywood" -> "en"
+            "zylo_south" -> "te|ta|ml|kn"
+            "zylo_punjabi" -> "pa"
+            else -> "hi"
+        }
+        CollectionSource(
+            provider = "tmdb",
+            tmdbSourceType = TmdbCollectionSourceType.DISCOVER.name,
+            mediaType = "movie",
+            sortBy = TmdbCollectionSort.POPULAR_DESC.value,
+            filters = TmdbCollectionFilters(
+                withOriginalLanguage = lang,
+                withOriginCountry = if (catalogId == "zylo_hollywood") "US" else "IN",
+            ),
+        )
+    }
+    return TmdbCollectionSourceResolver.resolve(source = source, page = pageNumber)
 }
 
 private data class CatalogRequest(

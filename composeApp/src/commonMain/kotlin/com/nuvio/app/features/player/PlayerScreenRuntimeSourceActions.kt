@@ -223,6 +223,10 @@ internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
         return
     }
     val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
+    if (currentPositionMs > 0L) {
+        activeInitialPositionMs = currentPositionMs
+        activeInitialProgressFraction = null
+    }
     flushWatchProgress()
     stopActiveP2pStream()
     saveP2pStreamForReuse(
@@ -252,8 +256,6 @@ internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
     activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints)
     currentStreamFilename = stream.behaviorHints.filename
     currentStreamInfoHash = stream.infoHash
-    activeInitialPositionMs = currentPositionMs
-    activeInitialProgressFraction = null
     showSourcesPanel = false
     controlsVisible = true
     PlayerStreamsRepository.pauseSearchForPlayback()
@@ -334,6 +336,10 @@ internal fun PlayerScreenRuntime.switchToSource(
         return
     }
     val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
+    if (currentPositionMs > 0L) {
+        activeInitialPositionMs = currentPositionMs
+        activeInitialProgressFraction = null
+    }
     flushWatchProgress()
     stopActiveP2pStream()
     val currentVideoId = activeVideoId
@@ -358,8 +364,6 @@ internal fun PlayerScreenRuntime.switchToSource(
     activeSubtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints, url)
     currentStreamFilename = stream.behaviorHints.filename
     currentStreamInfoHash = stream.infoHash
-    activeInitialPositionMs = currentPositionMs
-    activeInitialProgressFraction = null
     showSourcesPanel = false
     controlsVisible = true
     PlayerStreamsRepository.pauseSearchForPlayback()

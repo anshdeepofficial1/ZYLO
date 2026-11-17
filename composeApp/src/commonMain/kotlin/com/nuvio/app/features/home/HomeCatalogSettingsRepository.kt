@@ -4,6 +4,7 @@ import androidx.compose.ui.text.intl.Locale
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionRepository
+import com.nuvio.app.features.collection.isLegacyRegionalCollection
 import com.nuvio.app.features.servers.ServerCatalog
 import com.nuvio.app.features.servers.ServerRepository
 import kotlinx.atomicfu.atomic
@@ -301,7 +302,9 @@ object HomeCatalogSettingsRepository {
             heroEnabled = parsedPayload.heroEnabled
             showCatalogType = parsedPayload.showCatalogType
             hideUnreleasedContent = parsedPayload.hideUnreleasedContent
-            preferences = parsedPayload.items.associateBy { it.key }
+            preferences = parsedPayload.items
+                .filterNot { it.key.isLegacyRegionalCollectionKey() }
+                .associateBy { it.key }
             publish()
             return
         }
@@ -310,7 +313,9 @@ object HomeCatalogSettingsRepository {
             json.decodeFromString<List<StoredHomeCatalogPreference>>(payload)
         }.getOrDefault(emptyList())
 
-        preferences = legacyItems.associateBy { it.key }
+        preferences = legacyItems
+            .filterNot { it.key.isLegacyRegionalCollectionKey() }
+            .associateBy { it.key }
         publish()
     }
 
@@ -337,7 +342,7 @@ object HomeCatalogSettingsRepository {
         ).map { it.first }
 
         val normalized = current
-            .filterKeys { it !in knownKeys }
+            .filterKeys { it !in knownKeys && !it.isLegacyRegionalCollectionKey() }
             .toMutableMap()
         var enabledHeroSourceCount = 0
         orderedEntries.forEach { entry ->
@@ -578,6 +583,7 @@ object HomeCatalogSettingsRepository {
     }
 
     private fun defaultPreferenceForMissingKey(key: String): StoredHomeCatalogPreference? {
+        if (key.isLegacyRegionalCollectionKey()) return null
         val isCollection = collectionDefinitions.any { it.key == key }
         val isCatalog = definitions.any { it.key == key }
         if (!isCollection && !isCatalog) return null
@@ -625,6 +631,7 @@ internal data class CollectionCatalogDefinition(
 
 internal fun visibleCollectionsWithUniqueIds(collections: List<Collection>): List<Collection> =
     collections
+        .filterNot { it.isLegacyRegionalCollection() }
         .filter { collection -> collection.folders.isNotEmpty() }
         .distinctBy(Collection::id)
 
@@ -645,3 +652,13 @@ private data class CatalogSyncInput(
     val locale: String,
     val serverRevision: Int,
 )
+
+internal fun String.isLegacyRegionalCollectionKey(): Boolean {
+    if (!startsWith("collection_")) return false
+    val lower = lowercase()
+    return lower.startsWith("collection_zylo_") ||
+        lower.contains("bollywood") ||
+        lower.contains("south") ||
+        lower.contains("punjabi") ||
+        lower.contains("hollywood")
+}

@@ -36,6 +36,7 @@ import com.nuvio.app.features.servers.ServerStreams
 import com.nuvio.app.features.streams.BingeGroupCacheRepository
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.streams.StreamItem
+import com.nuvio.app.features.streams.StreamsRepository
 import com.nuvio.app.features.streams.hasLikelyExpiringPlaybackCredentials
 import com.nuvio.app.features.tracking.TrackingScrobbleAction
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -137,6 +138,33 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         )
     }
 
+    LaunchedEffect(activePlaybackKey) {
+        failedStreamUrls.clear()
+    }
+
+    LaunchedEffect(PlayerStreamsRepository.sourceState.value.groups) {
+        val groups = PlayerStreamsRepository.sourceState.value.groups
+        if (errorMessage != null && groups.isNotEmpty()) {
+            val allStreams = groups.flatMap { it.streams }
+            val candidate = allStreams.firstOrNull { s ->
+                val u = s.playableDirectUrl
+                !u.isNullOrBlank() && u !in failedStreamUrls && u != activeSourceUrl
+            }
+            if (candidate != null) {
+                errorMessage = null
+                controlsVisible = false
+                engineFailoverTriggered = false
+                engineFailoverSourceIdentity = null
+                engineFailoverDisarmed = false
+                playbackEngineOverride = null
+                val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
+                activeInitialPositionMs = currentPositionMs
+                activeInitialProgressFraction = null
+                switchToSource(candidate, saveForReuse = false)
+            }
+        }
+    }
+
     LaunchedEffect(activePlaybackKey, activeSourceUrl, activeSourceAudioUrl, activeSourceHeaders, activeSourceResponseHeaders) {
         errorMessage = null
         playerController = null
@@ -152,7 +180,6 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         credentialRefreshJob?.cancel()
         credentialRefreshJob = null
         credentialRefreshAttemptedSourceUrl = null
-        failedStreamUrls.clear()
         initialLoadCompleted = false
         lastProgressPersistEpochMs = 0L
         previousIsPlaying = false
@@ -1095,15 +1122,42 @@ internal fun PlayerScreenRuntime.tryFailoverToNextStream(message: String?): Bool
     failedStreamUrls.add(failedUrl)
     removeFailedStreamFromCache()
 
-    val groups = PlayerStreamsRepository.sourceState.value.groups
+    val groups = PlayerStreamsRepository.sourceState.value.groups.ifEmpty {
+        StreamsRepository.uiState.value.groups
+    }
     val allStreams = groups.flatMap { it.streams }
     val candidate = allStreams.firstOrNull { s ->
         val u = s.playableDirectUrl
         !u.isNullOrBlank() && u !in failedStreamUrls && u != failedUrl
-    } ?: return false
+    }
 
-    errorMessage = null
-    controlsVisible = false
-    switchToSource(candidate, saveForReuse = false)
-    return true
+    if (candidate != null) {
+        errorMessage = null
+        controlsVisible = false
+        engineFailoverTriggered = false
+        engineFailoverSourceIdentity = null
+        engineFailoverDisarmed = false
+        playbackEngineOverride = null
+        val currentPositionMs = playbackSnapshot.positionMs.coerceAtLeast(0L)
+        if (currentPositionMs > 0L) {
+            activeInitialPositionMs = currentPositionMs
+            activeInitialProgressFraction = null
+        }
+        switchToSource(candidate, saveForReuse = false)
+        return true
+    }
+
+    val currentVideoId = activeVideoId
+    if (currentVideoId != null) {
+        val type = contentType ?: parentMetaType
+        PlayerStreamsRepository.loadSources(
+            type = type,
+            videoId = currentVideoId,
+            season = activeSeasonNumber,
+            episode = activeEpisodeNumber,
+            forceRefresh = true,
+        )
+    }
+
+    return false
 }
