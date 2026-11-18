@@ -40,6 +40,10 @@ internal object MetaDetailsParser {
             logo = meta.string("logo"),
             description = meta.string("description"),
             releaseInfo = meta.string("releaseInfo"),
+            releaseDate = meta.string("releaseDate")
+                ?: meta.string("released")
+                ?: meta.string("release_date")
+                ?: meta.string("first_air_date"),
             lastAirDate = meta.string("lastAirDate"),
             status = meta.string("status"),
             imdbRating = meta.string("imdbRating"),

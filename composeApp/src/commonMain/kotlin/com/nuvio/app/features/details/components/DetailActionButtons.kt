@@ -307,7 +307,6 @@ fun DetailActions(
                     onLongClick = onSaveLongClick,
                 ),
             )
-            downloadAction?.let(::add)
             onMoreClick?.let { onClick ->
                 add(
                     DetailSecondaryAction(

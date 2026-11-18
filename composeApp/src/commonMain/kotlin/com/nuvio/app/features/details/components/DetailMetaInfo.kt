@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,7 @@ import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaExternalRating
 import com.nuvio.app.features.details.formatRuntimeForDisplay
 import com.nuvio.app.features.details.formatMetaReleaseLineForDetails
+import com.nuvio.app.features.home.isUnreleased
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_AUDIENCE
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_IMDB
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_LETTERBOXD
@@ -55,6 +57,8 @@ import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_TOMATOES
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_TRAKT
 import com.nuvio.app.features.mdblist.RottenTomatoesStatus
 import com.nuvio.app.features.mdblist.rottenTomatoesStatus
+import com.nuvio.app.features.streams.StreamPrintQuality
+import com.nuvio.app.features.streams.StreamQualityRepository
 import nuvio.composeapp.generated.resources.*
 import nuvio.composeapp.generated.resources.rating_audience_score
 import nuvio.composeapp.generated.resources.rating_imdb
@@ -67,6 +71,7 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
@@ -95,11 +100,31 @@ fun DetailMetaInfo(
             ?.let(::formatOneDecimal)
         val ratingMedia = remember(meta) { meta.ratingReference() }
         val ratingState by rememberRatingState(ratingMedia)
+        val availableQualities by produceState(
+            initialValue = emptyList<StreamPrintQuality>(),
+            key1 = meta.type,
+            key2 = meta.id,
+            key3 = meta.releaseDate,
+        ) {
+            if (!meta.type.equals("movie", ignoreCase = true)) return@produceState
+            if (meta.isUnreleased()) return@produceState
+            // Let the screen settle before spending a provider request on badge discovery.
+            delay(1_200L)
+            value = runCatching {
+                StreamQualityRepository.availableQualities(
+                    type = meta.type,
+                    videoId = meta.imdbId?.trim()?.takeIf { it.startsWith("tt", ignoreCase = true) }
+                        ?: meta.id,
+                    parentMetaId = meta.id,
+                )
+            }.getOrDefault(emptyList())
+        }
         val hasMetaRow = releaseLine != null ||
             runtimeText != null ||
             ageBadge != null ||
             validImdbRating != null ||
-            ratingState.isAvailable
+            ratingState.isAvailable ||
+            availableQualities.isNotEmpty()
         if (hasMetaRow) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -148,6 +173,19 @@ fun DetailMetaInfo(
                         title = meta.name,
                         state = ratingState,
                     )
+                }
+                if (availableQualities.isNotEmpty()) {
+                    Text(
+                        text = "Available:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    availableQualities.forEach { quality ->
+                        DetailHeroMetaBadge(
+                            text = quality.label,
+                            contentColor = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }

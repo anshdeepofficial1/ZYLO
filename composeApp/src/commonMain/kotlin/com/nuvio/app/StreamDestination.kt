@@ -247,6 +247,7 @@ internal fun StreamDestination(
             contentLanguage = resolveLaunchContentLanguage(),
             sourceFilename = stream.behaviorHints.filename,
             stream = stream,
+            sourceAutoSelected = replaceStreamRoute,
         )
 
         autoPlayNavigationStarted = replaceStreamRoute
@@ -372,6 +373,7 @@ internal fun StreamDestination(
                 ),
                 contentLanguage = resolveLaunchContentLanguage(cached.contentLanguage),
                 sourceFilename = cached.filename,
+                sourceAutoSelected = true,
                 stream = StreamItem(
                     name = cached.streamName,
                     description = cached.streamDescription,
@@ -559,6 +561,7 @@ internal fun StreamDestination(
             contentLanguage = resolveLaunchContentLanguage(),
             sourceFilename = stream.behaviorHints.filename,
             stream = stream,
+            sourceAutoSelected = true,
         )
         if (playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
             openExternalPlayback(playerLaunch)

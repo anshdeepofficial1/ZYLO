@@ -211,6 +211,18 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         WatchProgressRepository.ensureLoaded()
     }
 
+    // A source that does not finish loading within the configured time counts as failed when
+    // falling back to the next source. It has an effect only where that fallback applies.
+    LaunchedEffect(activePlaybackKey, activeSourceUrl, activeSourceAudioUrl, activeSourceHeaders, activeSourceResponseHeaders) {
+        val startupTimeoutSeconds = playerSettingsUiState.streamAutoPlayFallbackStartupTimeoutSeconds
+        delay(startupTimeoutSeconds * 1_000L)
+        if (!initialLoadCompleted && errorMessage == null) {
+            tryFallbackToNextSourceAfterError(
+                getString(Res.string.player_error_source_startup_timeout, startupTimeoutSeconds),
+            )
+        }
+    }
+
     LaunchedEffect(
         activeTorrentInfoHash,
         activeTorrentFileIdx,
@@ -1020,14 +1032,14 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
 
             val stream = refreshedStream
             if (stream == null) {
-                errorMessage = message
+                showErrorUnlessSourceFallback(message)
                 controlsVisible = !playerControlsLocked
                 return@launch
             }
 
             val refreshedUrl = stream.playableDirectUrl
             if (refreshedUrl.isNullOrBlank() || refreshedUrl == failedUrl) {
-                errorMessage = message
+                showErrorUnlessSourceFallback(message)
                 controlsVisible = !playerControlsLocked
                 return@launch
             }
@@ -1070,7 +1082,7 @@ private fun PlayerScreenRuntime.retryServerSourceAfterError(message: String?): B
     credentialRefreshJob = scope.launch {
         val playback = ServerPlayback.fallback(failedUrl)
         if (playback == null) {
-            errorMessage = message
+            showErrorUnlessSourceFallback(message)
             controlsVisible = !playerControlsLocked
             return@launch
         }

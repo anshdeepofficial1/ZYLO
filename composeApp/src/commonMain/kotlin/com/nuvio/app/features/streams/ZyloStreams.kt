@@ -85,7 +85,11 @@ object ZyloStreams {
             val parsed = runCatching {
                 StreamParser.parse(response.body, addonName, addonId)
             }.getOrDefault(emptyList())
-            directStreams = prepareDirectStreams(parsed)
+            directStreams = prepareDirectStreams(
+                streams = parsed,
+                expectedTitle = meta?.name,
+                verifyTitle = !isSeries,
+            )
             if (directStreams.isNotEmpty()) break
         }
 
@@ -119,17 +123,25 @@ object ZyloStreams {
         }
     }
 
-    internal fun prepareDirectStreams(streams: List<StreamItem>): List<StreamItem> =
+    internal fun prepareDirectStreams(
+        streams: List<StreamItem>,
+        expectedTitle: String? = null,
+        verifyTitle: Boolean = true,
+    ): List<StreamItem> =
         streams
             .asSequence()
             .filter { stream -> stream.url.isDirectHttpUrl() }
+            .filterNot(StreamContentFilter::isBlockedPrint)
+            .filter { stream ->
+                !verifyTitle || StreamContentFilter.matchesExpectedTitle(stream, expectedTitle)
+            }
             .distinctBy { stream -> stream.url?.trim() }
             .sortedBy(::reliabilityScore)
             .mapIndexed { index, stream ->
                 val providerKey = directProviderKey(stream, index)
                 stream.copy(
                     externalUrl = null,
-                    sourceName = addonName,
+                    sourceName = StreamContentFilter.sourceLabel(stream),
                     addonName = addonName,
                     addonId = addonId,
                     streamType = stream.streamType ?: inferStreamType(stream),

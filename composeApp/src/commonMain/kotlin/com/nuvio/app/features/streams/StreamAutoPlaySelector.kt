@@ -187,11 +187,13 @@ object StreamAutoPlaySelector {
                 .filterNot { it == preferredStream }
                 .forEach(::add)
         }
-        val selected = readyStreams.firstOrNull()
+        // Direct URLs start instantly; among torrents, the best-seeded copy buffers the least.
+        val orderedReadyStreams = readyStreams.sortedBy { it.autoPlaySelectionRank() }
+        val selected = orderedReadyStreams.firstOrNull()
         if (selected != null) {
             return StreamAutoPlayEvaluation(
                 stream = selected,
-                readyStreams = readyStreams,
+                readyStreams = orderedReadyStreams,
             )
         }
 
@@ -216,6 +218,30 @@ object StreamAutoPlaySelector {
                     !isPendingDebridAutoPlay(debridEnabled, activeResolverProviderId)
             ) ||
             (debridEnabled && isAddonDebridCandidate && isReadyDebridAutoPlay(activeResolverProviderId))
+
+    /**
+     * Lower is picked first. Streams the player can open directly start instantly; torrent
+     * copies are ordered by how many peers the addon reported, so autoplay does not land on a
+     * dead torrent while healthy copies are available.
+     */
+    private fun StreamItem.autoPlaySelectionRank(): Int =
+        when {
+            playableDirectUrl != null || serverTarget != null -> 0
+            isTorrentStream || needsLocalDebridResolve -> when (parsedSeederCount()) {
+                in 100..Int.MAX_VALUE -> 1
+                in 10..99 -> 2
+                in 1..9 -> 3
+                else -> 4
+            }
+            else -> 5
+        }
+
+    /** Seeders the addon advertises in the stream text, e.g. "👤 128" or "128 seeders". */
+    private fun StreamItem.parsedSeederCount(): Int {
+        val text = listOfNotNull(name, title, description).joinToString(" ")
+        val match = Regex("""(\d+)\s*(?:👤|seeders?)""", RegexOption.IGNORE_CASE).find(text)
+        return match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+    }
 
     private fun StreamItem.isReadyDebridAutoPlay(activeResolverProviderId: String?): Boolean =
         when {

@@ -143,6 +143,7 @@ object StreamsRepository {
         }
 
         val embeddedStreams = MetaDetailsRepository.findEmbeddedStreams(videoId)
+            .filterNot(StreamContentFilter::isBlockedPrint)
         if (embeddedStreams.isNotEmpty()) {
             log.d { "Using ${embeddedStreams.size} embedded streams for type=$type id=$videoId" }
             val group = AddonStreamGroup(
@@ -552,7 +553,7 @@ object StreamsRepository {
                                             addonId = providerGroup.addonId,
                                             includeScraperNameInSubtitle = includeScraperNameInSubtitle,
                                         )
-                                    },
+                                    }.filterNot(StreamContentFilter::isBlockedPrint),
                                     error = null,
                                 )
                             },

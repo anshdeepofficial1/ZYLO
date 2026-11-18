@@ -63,7 +63,7 @@ object StreamParser {
                     proxyHeaders = proxyHeaders,
                 ),
             )
-        }
+        }.filterNot(StreamContentFilter::isBlockedPrint)
     }
 
     private fun JsonObject.string(name: String): String? =

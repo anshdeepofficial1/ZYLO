@@ -1,8 +1,11 @@
 package com.nuvio.app.features.downloads
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -13,32 +16,49 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 
+/**
+ * Shows the real download sources returned for the selected title/episode. Each row comes from an
+ * actual direct stream; the server is probed for size, resume support and response speed before
+ * this list is displayed.
+ */
 @Composable
 fun DownloadOptionsDialog(
     title: String,
     subtitle: String? = null,
     onDismiss: () -> Unit,
-    onConfirm: (quality: String, server: String, language: String, includeSubtitles: Boolean, rememberChoice: Boolean) -> Unit,
+    loadOptions: suspend () -> List<DownloadSourceOption>,
+    onConfirm: (DownloadSourceOption) -> Unit,
 ) {
     val prefs by DownloadPreferencesRepository.preferences.collectAsState()
-
-    var selectedQuality by remember { mutableStateOf(if (prefs.preferredQuality != "ask") prefs.preferredQuality else "1080p") }
-    var selectedServer by remember { mutableStateOf(if (prefs.preferredServer != "auto") prefs.preferredServer else "Auto (Best Speed)") }
-    var selectedLanguage by remember { mutableStateOf(if (prefs.preferredLanguage != "default") prefs.preferredLanguage else "Default (Multi-Lang)") }
+    var options by remember { mutableStateOf<List<DownloadSourceOption>>(emptyList()) }
+    var selectedKey by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var reloadToken by remember { mutableIntStateOf(0) }
     var includeSubtitles by remember { mutableStateOf(prefs.includeSubtitles) }
-    var rememberChoice by remember { mutableStateOf(prefs.rememberChoice) }
 
-    val qualityOptions = listOf("1080p", "720p", "480p")
-    val estimatedSizes = mapOf(
-        "1080p" to "~1.4 GB",
-        "720p" to "~750 MB",
-        "480p" to "~380 MB",
-    )
-    val serverOptions = listOf("Auto (Best Speed)", "Nitro [Multi-Lang]", "Mahalala [Multi-Lang]", "CastVid", "Citadel")
-    val languageOptions = listOf("Default (Multi-Lang)", "Hindi", "English", "Tamil", "Telugu")
+    LaunchedEffect(reloadToken) {
+        isLoading = true
+        loadError = null
+        options = emptyList()
+        runCatching { loadOptions() }
+            .onSuccess { loaded ->
+                options = loaded
+                if (selectedKey == null || loaded.none { it.selectionKey == selectedKey }) {
+                    selectedKey = loaded.firstOrNull()?.selectionKey
+                }
+            }
+            .onFailure { error ->
+                loadError = error.message?.takeIf { it.isNotBlank() } ?: "Could not load download sources"
+            }
+        isLoading = false
+    }
+
+    val selectedOption = options.firstOrNull { it.selectionKey == selectedKey }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -49,9 +69,8 @@ fun DownloadOptionsDialog(
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -59,7 +78,7 @@ fun DownloadOptionsDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Download Options",
+                            text = "Download",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -69,6 +88,7 @@ fun DownloadOptionsDialog(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     IconButton(onClick = onDismiss) {
@@ -78,110 +98,74 @@ fun DownloadOptionsDialog(
 
                 HorizontalDivider()
 
-                // Quality selector with estimated size
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Quality & Estimated Size",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        qualityOptions.forEach { quality ->
-                            val isSelected = selectedQuality == quality
-                            val estimated = estimatedSizes[quality] ?: ""
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { selectedQuality = quality },
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    Text(
-                                        text = quality,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        text = estimated,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    )
-                                }
+                when {
+                    isLoading -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            Column {
+                                Text(
+                                    text = "Finding real sources…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = "Checking quality, size, speed and resume support",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
-                }
 
-                // Server / Source selector
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Server / Source",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        serverOptions.take(3).forEach { server ->
-                            val isSelected = selectedServer == server
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.weight(1f).clickable { selectedServer = server },
-                            ) {
-                                Text(
-                                    text = server.substringBefore(" ["),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(8.dp),
-                                    color = MaterialTheme.colorScheme.onSurface,
+                    options.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "No downloadable source found",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = loadError
+                                    ?: "CAM prints are hidden. A direct MP4/MKV source is required for offline download.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(onClick = { reloadToken++ }) {
+                                Text("Try again")
+                            }
+                        }
+                    }
+
+                    else -> {
+                        Text(
+                            text = "Available sources (${options.size})",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 330.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(options, key = { it.selectionKey }) { option ->
+                                DownloadSourceRow(
+                                    option = option,
+                                    selected = option.selectionKey == selectedKey,
+                                    onClick = { selectedKey = option.selectionKey },
                                 )
                             }
                         }
                     }
                 }
 
-                // Audio Language selector
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Preferred Audio",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        languageOptions.take(3).forEach { lang ->
-                            val isSelected = selectedLanguage == lang
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.weight(1f).clickable { selectedLanguage = lang },
-                            ) {
-                                Text(
-                                    text = lang.substringBefore(" ("),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(8.dp),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Options: Include Subtitles & Remember Choice
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (options.isNotEmpty() && !isLoading) {
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable { includeSubtitles = !includeSubtitles },
                         verticalAlignment = Alignment.CenterVertically,
@@ -192,36 +176,12 @@ fun DownloadOptionsDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Download Subtitles",
+                            text = "Download subtitles when available",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { rememberChoice = !rememberChoice },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = rememberChoice,
-                            onCheckedChange = { rememberChoice = it },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "Remember Choice",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                text = "Use these settings automatically next time (can change in Settings)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
                 }
 
-                // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -233,16 +193,13 @@ fun DownloadOptionsDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (rememberChoice) {
-                                DownloadPreferencesRepository.updatePreferences(
-                                    quality = selectedQuality,
-                                    language = selectedLanguage,
-                                    includeSubtitles = includeSubtitles,
-                                    rememberChoice = true,
-                                )
-                            }
-                            onConfirm(selectedQuality, selectedServer, selectedLanguage, includeSubtitles, rememberChoice)
+                            val choice = selectedOption ?: return@Button
+                            DownloadPreferencesRepository.updatePreferences(
+                                includeSubtitles = includeSubtitles,
+                            )
+                            onConfirm(choice)
                         },
+                        enabled = selectedOption != null && !isLoading,
                         shape = RoundedCornerShape(12.dp),
                     ) {
                         Icon(
@@ -256,5 +213,103 @@ fun DownloadOptionsDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DownloadSourceRow(
+    option: DownloadSourceOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        ),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = option.sourceLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                DownloadTag(
+                    text = option.qualityLabel,
+                    emphasized = true,
+                )
+                if (selected) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            Text(
+                text = buildString {
+                    append(option.sizeLabel)
+                    option.languageLabel?.let {
+                        append(" • ")
+                        append(it)
+                    }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DownloadTag(text = "${option.speedLabel} response")
+                DownloadTag(
+                    text = option.resumeLabel,
+                    highlighted = option.resumable == true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadTag(
+    text: String,
+    emphasized: Boolean = false,
+    highlighted: Boolean = false,
+) {
+    val containerColor = when {
+        emphasized -> MaterialTheme.colorScheme.primary
+        highlighted -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surface
+    }
+    val contentColor = when {
+        emphasized -> MaterialTheme.colorScheme.onPrimary
+        highlighted -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Box(
+        modifier = Modifier
+            .background(containerColor, RoundedCornerShape(6.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Medium,
+        )
     }
 }

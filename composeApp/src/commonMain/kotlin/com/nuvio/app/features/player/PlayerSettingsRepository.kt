@@ -86,6 +86,10 @@ data class PlayerSettingsUiState(
     val streamAutoPlaySelectedPlugins: Set<String> = emptySet(),
     val streamAutoPlayRegex: String = "",
     val streamAutoPlayTimeoutSeconds: Int = 3,
+    /** Try the next matching source quietly when an auto-picked source fails to start. */
+    val streamAutoPlayFallbackOnFailure: Boolean = true,
+    val streamAutoPlayFallbackMaxSources: Int = DEFAULT_SOURCE_FALLBACK_MAX_SOURCES,
+    val streamAutoPlayFallbackStartupTimeoutSeconds: Int = DEFAULT_SOURCE_STARTUP_TIMEOUT_SECONDS,
     val skipIntroEnabled: Boolean = true,
     val autoSkipSegmentTypes: Set<AutoSkipSegmentType> = emptySet(),
     val animeSkipEnabled: Boolean = false,
@@ -120,6 +124,23 @@ data class PlayerSettingsUiState(
     val iosSaturation: Int = 0,
     val iosGamma: Int = 0,
 )
+
+/** How many further sources falling back may try after the auto-selected one fails, by default and at most. */
+const val DEFAULT_SOURCE_FALLBACK_MAX_SOURCES = 3
+val SOURCE_FALLBACK_MAX_SOURCES_RANGE = 1..10
+
+/** How long a source may take to start before falling back treats it as failed, in seconds. */
+const val DEFAULT_SOURCE_STARTUP_TIMEOUT_SECONDS = 15
+val SOURCE_STARTUP_TIMEOUT_SECONDS_RANGE = 5..45
+
+/**
+ * Falling back to the next matching source applies only while auto source selection picks the
+ * stream and the internal player plays it.
+ */
+val PlayerSettingsUiState.streamAutoPlayFallbackActive: Boolean
+    get() = streamAutoPlayFallbackOnFailure &&
+        streamAutoPlayMode != StreamAutoPlayMode.MANUAL &&
+        !externalPlayerEnabled
 
 object PlayerSettingsRepository {
     private val _uiState = MutableStateFlow(PlayerSettingsUiState())

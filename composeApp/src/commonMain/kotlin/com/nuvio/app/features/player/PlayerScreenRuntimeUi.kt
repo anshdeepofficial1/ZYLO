@@ -238,6 +238,11 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                         if (message != null && tryRefreshCredentialedSourceAfterError(message)) {
                             return@PlatformPlayerSurface
                         }
+                        // A dead auto-selected source (dead torrent, expired link) cannot be fixed by
+                        // switching the playback engine, so try the next source before the engine.
+                        if (message != null && tryFallbackToNextSourceAfterError(message)) {
+                            return@PlatformPlayerSurface
+                        }
                         if (message != null && tryFailoverToNextStream(message)) {
                             return@PlatformPlayerSurface
                         }

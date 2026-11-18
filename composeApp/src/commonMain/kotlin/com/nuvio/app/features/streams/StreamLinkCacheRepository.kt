@@ -72,8 +72,16 @@ object StreamLinkCacheRepository {
             return
         }
 
+        // The P2P player exposes a loopback URL that only works for the current engine session.
+        // Keep the torrent identity and restart it on the next play instead of reusing that URL.
+        val reusableUrl = reusablePlaybackUrl(url)
+        if (reusableUrl.isBlank() && infoHash.isNullOrBlank()) {
+            remove(contentKey)
+            return
+        }
+
         val entry = CachedStreamLink(
-            url = url,
+            url = reusableUrl,
             streamName = streamName,
             addonName = addonName,
             addonId = addonId,
@@ -104,12 +112,15 @@ object StreamLinkCacheRepository {
     fun getValid(contentKey: String, maxAgeMs: Long): CachedStreamLink? {
         if (maxAgeMs <= 0L) return null
         val raw = StreamLinkCacheStorage.loadEntry(hashedKey(contentKey)) ?: return null
-        val entry = runCatching {
+        val decoded = runCatching {
             json.decodeFromString(CachedStreamLink.serializer(), raw)
         }.getOrNull() ?: run {
             StreamLinkCacheStorage.removeEntry(hashedKey(contentKey))
             return null
         }
+        // Entries written by older builds may contain a dead session-local P2P URL. Keep the
+        // torrent identity so the next playback starts the engine again.
+        val entry = decoded.withoutSessionLocalUrl()
         val age = epochMs() - entry.cachedAtMs
         if (entry.cachedAtMs <= 0L || age > maxAgeMs) {
             StreamLinkCacheStorage.removeEntry(hashedKey(contentKey))
@@ -171,3 +182,13 @@ object StreamLinkCacheRepository {
         return "stream_link_$hash"
     }
 }
+
+/**
+ * A loopback URL belongs to one live P2P engine session; reusing it after that engine stops is
+ * what made "play once, then replay always fails" happen. URLs are cleared, torrent identity kept.
+ */
+internal fun reusablePlaybackUrl(url: String): String =
+    url.takeUnless { it.isLocalLoopbackPlaybackUrl() }.orEmpty()
+
+internal fun CachedStreamLink.withoutSessionLocalUrl(): CachedStreamLink =
+    copy(url = reusablePlaybackUrl(url))

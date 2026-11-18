@@ -49,6 +49,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.features.downloads.DownloadOptionsDialog
+import com.nuvio.app.features.downloads.DownloadSourceOption
+import com.nuvio.app.features.downloads.DownloadSourceResolver
 import com.nuvio.app.features.downloads.DownloadsRepository
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -129,7 +131,6 @@ import com.nuvio.app.features.details.components.rememberRatingState
 import com.nuvio.app.features.details.components.SeasonWatchedActionSheet
 import com.nuvio.app.features.details.components.TabletArtworkBackdropAlignment
 import com.nuvio.app.features.details.components.TabletDetailBackdrop
-import com.nuvio.app.features.streams.ZyloStreams
 import com.nuvio.app.features.details.components.TabletDetailHero
 import com.nuvio.app.features.details.components.TrailerPlayerPopup
 import com.nuvio.app.features.home.MetaPreview
@@ -261,8 +262,7 @@ fun MetaDetailsScreen(
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var autoLoadAttempted by remember(type, id) { mutableStateOf(false) }
     var observedOfflineState by remember(type, id) { mutableStateOf(false) }
-    var showDownloadOptionsDialog by remember { mutableStateOf(false) }
-    var downloadTargetSubtitle by remember { mutableStateOf<String?>(null) }
+    var downloadTarget by remember(type, id) { mutableStateOf<DetailsDownloadTarget?>(null) }
     var selectedEpisodeForActions by remember(type, id) { mutableStateOf<MetaVideo?>(null) }
     var selectedEpisodeZoomAnchor by remember(type, id) { mutableStateOf<PosterZoomAnchor?>(null) }
     var episodeToRate by remember(type, id) { mutableStateOf<MetaVideo?>(null) }
@@ -1035,81 +1035,94 @@ fun MetaDetailsScreen(
                     )
                 }
                 val onDownloadClick: () -> Unit = {
-                    downloadTargetSubtitle = if (meta.type == "series" || hasEpisodes) {
-                        seriesAction?.let { "S${it.seasonNumber} E${it.episodeNumber} • ${it.episodeTitle ?: "Episode"}" } ?: "Season 1"
-                    } else null
-                    showDownloadOptionsDialog = true
+                    val isSeriesDownload = meta.type == "series" || hasEpisodes
+                    if (isSeriesDownload) {
+                        val fallbackEpisode = meta.releasedPlayableEpisodes(todayIsoDate).firstOrNull()
+                        val targetVideoId = seriesStreamVideoId ?: seriesAction?.videoId ?: fallbackEpisode?.id
+                        if (targetVideoId.isNullOrBlank()) {
+                            NuvioToastController.show("No downloadable episode found")
+                        } else {
+                            val seasonNumber = seriesAction?.seasonNumber ?: fallbackEpisode?.season
+                            val episodeNumber = seriesAction?.episodeNumber ?: fallbackEpisode?.episode
+                            val episodeTitle = seriesAction?.episodeTitle ?: fallbackEpisode?.title
+                            downloadTarget = DetailsDownloadTarget(
+                                videoId = targetVideoId,
+                                seasonNumber = seasonNumber,
+                                episodeNumber = episodeNumber,
+                                episodeTitle = episodeTitle,
+                                episodeThumbnail = seriesAction?.episodeThumbnail ?: fallbackEpisode?.thumbnail,
+                                subtitle = buildEpisodeDownloadSubtitle(
+                                    seasonNumber = seasonNumber,
+                                    episodeNumber = episodeNumber,
+                                    episodeTitle = episodeTitle,
+                                ),
+                            )
+                        }
+                    } else {
+                        downloadTarget = DetailsDownloadTarget(videoId = meta.id)
+                    }
                 }
                 val onDownloadSeasonClick: (Int) -> Unit = { seasonNum ->
-                    downloadTargetSubtitle = "Season $seasonNum"
-                    showDownloadOptionsDialog = true
+                    val seasonEpisode = meta
+                        .releasedEpisodesForSeason(seasonNumber = seasonNum, todayIsoDate = todayIsoDate)
+                        .firstOrNull()
+                        ?: meta.videos.firstOrNull { it.season == seasonNum }
+                    if (seasonEpisode?.id.isNullOrBlank()) {
+                        NuvioToastController.show("No downloadable episode found in this season")
+                    } else {
+                        downloadTarget = DetailsDownloadTarget(
+                            videoId = seasonEpisode.id,
+                            seasonNumber = seasonEpisode.season ?: seasonNum,
+                            episodeNumber = seasonEpisode.episode,
+                            episodeTitle = seasonEpisode.title,
+                            episodeThumbnail = seasonEpisode.thumbnail,
+                            subtitle = buildString {
+                                append("Season ")
+                                append(seasonNum)
+                                val episodeLabel = buildEpisodeDownloadSubtitle(
+                                    seasonNumber = seasonEpisode.season ?: seasonNum,
+                                    episodeNumber = seasonEpisode.episode,
+                                    episodeTitle = seasonEpisode.title,
+                                )
+                                if (episodeLabel.isNotBlank()) {
+                                    append(" • ")
+                                    append(episodeLabel)
+                                }
+                            },
+                        )
+                    }
                 }
-                if (showDownloadOptionsDialog) {
+                downloadTarget?.let { target ->
                     DownloadOptionsDialog(
                         title = meta.name,
-                        subtitle = downloadTargetSubtitle,
-                        onDismiss = { showDownloadOptionsDialog = false },
-                        onConfirm = { quality, _, language, _, _ ->
-                            showDownloadOptionsDialog = false
+                        subtitle = target.subtitle,
+                        onDismiss = { downloadTarget = null },
+                        loadOptions = {
+                            DownloadSourceResolver.resolve(
+                                type = meta.type,
+                                videoId = target.videoId,
+                                parentMetaId = meta.id,
+                                season = target.seasonNumber,
+                                episode = target.episodeNumber,
+                            )
+                        },
+                        onConfirm = { option: DownloadSourceOption ->
+                            downloadTarget = null
                             detailsScope.launch {
-                                val isSeriesDownload = meta.type == "series" || hasEpisodes
-                                val targetVideoId = if (isSeriesDownload) {
-                                    seriesStreamVideoId ?: seriesAction?.videoId ?: meta.videos.firstOrNull()?.id
-                                } else {
-                                    meta.id
-                                }
-                                if (targetVideoId.isNullOrBlank()) {
-                                    NuvioToastController.show("No downloadable episode found")
-                                    return@launch
-                                }
-                                val seasonNumber = seriesAction?.seasonNumber.takeIf { isSeriesDownload }
-                                val episodeNumber = seriesAction?.episodeNumber.takeIf { isSeriesDownload }
-                                val group = ZyloStreams.resolveDirectStreams(
-                                    type = meta.type,
-                                    videoId = targetVideoId,
-                                    parentMetaId = meta.id,
-                                    season = seasonNumber,
-                                    episode = episodeNumber,
-                                )
-                                val qualityToken = quality.lowercase()
-                                val languageToken = language.substringBefore(" (").lowercase()
-                                val stream = group.streams.firstOrNull { candidate ->
-                                    val description = listOfNotNull(
-                                        candidate.name,
-                                        candidate.title,
-                                        candidate.description,
-                                        candidate.behaviorHints.filename,
-                                    ).joinToString(" ").lowercase()
-                                    qualityToken in description &&
-                                        (languageToken.startsWith("default") || languageToken in description)
-                                } ?: group.streams.firstOrNull { candidate ->
-                                    val description = listOfNotNull(
-                                        candidate.name,
-                                        candidate.title,
-                                        candidate.description,
-                                        candidate.behaviorHints.filename,
-                                    ).joinToString(" ").lowercase()
-                                    qualityToken in description
-                                } ?: group.streams.firstOrNull()
-
-                                if (stream == null) {
-                                    NuvioToastController.show("No downloadable source is available")
-                                    return@launch
-                                }
                                 val result = DownloadsRepository.enqueueFromStream(
                                     contentType = meta.type,
-                                    videoId = targetVideoId,
+                                    videoId = target.videoId,
                                     parentMetaId = meta.id,
                                     parentMetaType = meta.type,
                                     title = meta.name,
                                     logo = meta.logo,
                                     poster = meta.poster,
                                     background = meta.background,
-                                    seasonNumber = seasonNumber,
-                                    episodeNumber = episodeNumber,
-                                    episodeTitle = seriesAction?.episodeTitle,
-                                    episodeThumbnail = seriesAction?.episodeThumbnail,
-                                    stream = stream,
+                                    seasonNumber = target.seasonNumber,
+                                    episodeNumber = target.episodeNumber,
+                                    episodeTitle = target.episodeTitle,
+                                    episodeThumbnail = target.episodeThumbnail,
+                                    stream = option.stream,
                                 )
                                 NuvioToastController.show(result.toastMessage())
                             }
@@ -1568,8 +1581,7 @@ fun MetaDetailsScreen(
                                     onEpisodeManualPlayClick(selectedEpisode)
                                 },
                                 onDownloadEpisode = {
-                                    downloadTargetSubtitle = "S${selectedEpisode.season ?: 1} E${selectedEpisode.episode ?: 1} • ${selectedEpisode.title ?: "Episode"}"
-                                    showDownloadOptionsDialog = true
+                                    downloadTarget = selectedEpisode.toDownloadTarget()
                                 },
                                 ratingMedia = remember(meta, selectedEpisode) { meta.ratingReference(selectedEpisode) },
                             )
@@ -1944,8 +1956,7 @@ fun MetaDetailsScreen(
                             icon = Icons.Default.CloudDownload,
                             label = "Download Episode",
                             onSelected = {
-                                downloadTargetSubtitle = "S${selectedEpisode.season ?: 1} E${selectedEpisode.episode ?: 1} • ${selectedEpisode.title ?: "Episode"}"
-                                showDownloadOptionsDialog = true
+                                downloadTarget = selectedEpisode.toDownloadTarget()
                             },
                         ),
                     )
@@ -2102,6 +2113,44 @@ private fun MetaDetails.toMetaPreview(): MetaPreview =
         imdbRating = imdbRating,
         genres = genres,
     )
+
+/** The exact movie/episode a download was requested for. */
+private data class DetailsDownloadTarget(
+    val videoId: String,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
+    val episodeTitle: String? = null,
+    val episodeThumbnail: String? = null,
+    val subtitle: String? = null,
+)
+
+private fun MetaVideo.toDownloadTarget(): DetailsDownloadTarget =
+    DetailsDownloadTarget(
+        videoId = id,
+        seasonNumber = season,
+        episodeNumber = episode,
+        episodeTitle = title,
+        episodeThumbnail = thumbnail,
+        subtitle = buildEpisodeDownloadSubtitle(
+            seasonNumber = season,
+            episodeNumber = episode,
+            episodeTitle = title,
+        ),
+    )
+
+private fun buildEpisodeDownloadSubtitle(
+    seasonNumber: Int?,
+    episodeNumber: Int?,
+    episodeTitle: String?,
+): String {
+    val code = if (seasonNumber != null && episodeNumber != null) {
+        "S$seasonNumber E$episodeNumber"
+    } else {
+        ""
+    }
+    val name = episodeTitle?.trim()?.takeIf { it.isNotBlank() }
+    return listOfNotNull(code.takeIf { it.isNotBlank() }, name).joinToString(" • ")
+}
 
 private fun LazyListScope.configuredMetaSectionItems(
     settings: MetaScreenSettingsUiState,

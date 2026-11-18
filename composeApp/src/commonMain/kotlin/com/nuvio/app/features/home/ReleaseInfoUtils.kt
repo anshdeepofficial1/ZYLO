@@ -54,6 +54,15 @@ internal fun com.nuvio.app.features.details.MetaDetails.isUnreleased(
         }
     }
 
+    releaseDate
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { date ->
+            isEpisodeReleaseAired(date, nowEpochMs)?.let { hasAired ->
+                return !hasAired
+            }
+        }
+
     val info = releaseInfo?.trim() ?: return false
     isEpisodeReleaseAired(info, nowEpochMs)?.let { hasAired ->
         return !hasAired

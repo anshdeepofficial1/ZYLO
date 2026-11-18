@@ -2,6 +2,7 @@ package com.nuvio.app.features.servers
 
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamBehaviorHints
+import com.nuvio.app.features.streams.StreamContentFilter
 import com.nuvio.app.features.streams.StreamItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -95,6 +96,7 @@ internal object ServerStreams {
                     serverTarget = candidate.target,
                 )
             }
+            .filterNot(StreamContentFilter::isBlockedPrint)
     }
 
     private fun groupId(connectionId: String) = "$GROUP_PREFIX$connectionId"

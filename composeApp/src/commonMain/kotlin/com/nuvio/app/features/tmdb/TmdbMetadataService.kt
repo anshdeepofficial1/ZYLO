@@ -778,6 +778,7 @@ object TmdbMetadataService {
             logo = enrichment.logo,
             description = enrichment.description,
             releaseInfo = enrichment.releaseInfo,
+            releaseDate = enrichment.releaseDate,
             lastAirDate = enrichment.lastAirDate,
             status = enrichment.status,
             imdbRating = enrichment.rating?.formatRating(),
@@ -823,6 +824,8 @@ object TmdbMetadataService {
                 imdbRating = updated.imdbRating?.takeIf { it.isNotBlank() }
                     ?: enrichment.rating?.formatRating(),
                 genres = enrichment.genres.ifEmpty { updated.genres },
+                releaseInfo = updated.releaseInfo ?: enrichment.releaseInfo,
+                releaseDate = enrichment.releaseDate ?: updated.releaseDate,
             )
         }
 
@@ -1056,6 +1059,7 @@ object TmdbMetadataService {
             director = directors,
             writer = writers,
             releaseInfo = releaseInfo,
+            releaseDate = releaseInfo,
             lastAirDate = lastAirDate,
             rating = details.voteAverage,
             runtimeMinutes = details.runtime ?: details.episodeRunTime.firstOrNull(),
@@ -1424,6 +1428,7 @@ internal data class TmdbEnrichment(
     val director: List<String>,
     val writer: List<String>,
     val releaseInfo: String?,
+    val releaseDate: String? = null,
     val lastAirDate: String? = null,
     val rating: Double?,
     val runtimeMinutes: Int?,
@@ -1449,6 +1454,7 @@ internal data class TmdbEnrichment(
             director.isNotEmpty() ||
             writer.isNotEmpty() ||
             releaseInfo != null ||
+            releaseDate != null ||
             lastAirDate != null ||
             rating != null ||
             runtimeMinutes != null ||

@@ -52,6 +52,8 @@ data class PlayerLaunch(
     val subtitleExtras: SubtitleRequestExtras? = null,
     val sourceFilename: String? = null,
     val stream: com.nuvio.app.features.streams.StreamItem? = null,
+    /** True when the source was picked by auto-play, so startup failures may fall back silently. */
+    val sourceAutoSelected: Boolean = false,
 )
 
 object PlayerLaunchStore {
