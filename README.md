@@ -40,6 +40,19 @@
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+
+  <img src="screenshots/ZYLO_HOME.jpg" alt="ZYLO Home" width="180" />
+  <img src="screenshots/ZYLO_DISCOVER.jpg" alt="ZYLO Discover" width="180" />
+  <img src="screenshots/ZYLO_LIBRARY.jpg" alt="ZYLO Library" width="180" />
+  <img src="screenshots/ZYLO_SETTINGS.jpg" alt="ZYLO Settings" width="180" />
+
+</div>
+
+---
+
 ## 📥 Download
 
 Grab the latest signed release APK:
