@@ -109,6 +109,7 @@ import com.nuvio.app.features.collection.CollectionSyncService
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import com.nuvio.app.features.downloads.DownloadItem
+import com.nuvio.app.features.downloads.DownloadPreferencesRepository
 import com.nuvio.app.features.downloads.DownloadSubtitles
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
@@ -131,6 +132,7 @@ import com.nuvio.app.features.library.toLibraryItem
 import com.nuvio.app.features.library.toMetaPreview
 import com.nuvio.app.features.membership.MemberAccessRepository
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
+import com.nuvio.app.features.notifications.MovieReleaseRemindersRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.party.PartyEvent
 import com.nuvio.app.features.party.PartyMedia
@@ -246,6 +248,9 @@ internal fun MainAppContent(
                 EpisodeReleaseNotificationsRepository.ensureLoaded()
             }
             remember {
+                MovieReleaseRemindersRepository.ensureLoaded()
+            }
+            remember {
                 CollectionSyncService.startObserving()
             }
             remember {
@@ -341,6 +346,7 @@ internal fun MainAppContent(
     val fullyWatchedSeriesKeys by WatchedRepository.fullyWatchedSeriesKeys.collectAsStateWithLifecycle()
     val downloadsUiState by remember {
         DownloadsRepository.ensureLoaded()
+        DownloadPreferencesRepository.ensureLoaded()
         DownloadsRepository.uiState
     }.collectAsStateWithLifecycle()
     val networkStatusUiState by remember {
@@ -540,6 +546,7 @@ internal fun MainAppContent(
         if (!ownsAppRuntime) return@LaunchedEffect
         NetworkStatusRepository.ensureStarted()
         EpisodeReleaseNotificationsRepository.refreshAsync()
+        MovieReleaseRemindersRepository.ensureLoaded()
         kotlinx.coroutines.delay(5_000)
         initialHomeReady = true
     }

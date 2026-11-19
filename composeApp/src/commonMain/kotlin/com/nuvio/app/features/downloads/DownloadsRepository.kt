@@ -124,6 +124,7 @@ object DownloadsRepository {
         episodeTitle: String?,
         episodeThumbnail: String?,
         stream: StreamItem,
+        includeSubtitles: Boolean = true,
     ): DownloadEnqueueResult {
         ensureLoaded()
 
@@ -186,12 +187,16 @@ object DownloadsRepository {
             sourceUrl = sourceUrl,
             sourceHeaders = sanitizeRequestHeaders(stream.behaviorHints.proxyHeaders?.request),
             sourceResponseHeaders = sanitizeResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
-            subtitleRequests = addonSubtitleRequests(
-                type = contentType,
-                videoId = videoId,
-                extras = SubtitleRequestExtras.from(stream.behaviorHints, sourceUrl),
-            ),
-            sourceSubtitles = stream.externalSubtitles,
+            subtitleRequests = if (includeSubtitles) {
+                addonSubtitleRequests(
+                    type = contentType,
+                    videoId = videoId,
+                    extras = SubtitleRequestExtras.from(stream.behaviorHints, sourceUrl),
+                )
+            } else {
+                emptyList()
+            },
+            sourceSubtitles = if (includeSubtitles) stream.externalSubtitles else emptyList(),
             localFileUri = null,
             fileName = fileName,
             status = DownloadStatus.Downloading,

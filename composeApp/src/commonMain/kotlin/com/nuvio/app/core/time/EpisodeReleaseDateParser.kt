@@ -149,6 +149,29 @@ internal fun isoEpochDay(date: String): Long = isoEpochDay(
     day = date.substring(8, 10).toInt(),
 )
 
+/** Shifts a valid ISO calendar date by [days] (negative shifts go back in time). */
+internal fun shiftIsoDate(date: String, days: Int): String? {
+    val parsed = parseIsoCalendarDate(date) ?: return null
+    return isoDateFromEpochDay(isoEpochDay(parsed) + days)
+}
+
+/** Inverse of [isoEpochDay]; Howard Hinnant's civil-from-days algorithm. */
+internal fun isoDateFromEpochDay(epochDay: Long): String {
+    val z = epochDay + 719_468L
+    val era = if (z >= 0L) z / 146_097L else (z - 146_096L) / 146_097L
+    val dayOfEra = z - era * 146_097L
+    val yearOfEra = (dayOfEra - dayOfEra / 1_460L + dayOfEra / 36_524L - dayOfEra / 146_096L) / 365L
+    val year = yearOfEra + era * 400L
+    val dayOfYear = dayOfEra - (365L * yearOfEra + yearOfEra / 4L - yearOfEra / 100L)
+    val monthPrime = (5L * dayOfYear + 2L) / 153L
+    val day = dayOfYear - (153L * monthPrime + 2L) / 5L + 1L
+    val month = if (monthPrime < 10L) monthPrime + 3L else monthPrime - 9L
+    val calendarYear = if (month <= 2L) year + 1L else year
+    return calendarYear.toString().padStart(4, '0') + "-" +
+        month.toString().padStart(2, '0') + "-" +
+        day.toString().padStart(2, '0')
+}
+
 private fun isoEpochDay(year: Int, month: Int, day: Int): Long {
     val adjustedYear = year.toLong() - if (month <= 2) 1L else 0L
     val era = if (adjustedYear >= 0L) adjustedYear / 400L else (adjustedYear - 399L) / 400L

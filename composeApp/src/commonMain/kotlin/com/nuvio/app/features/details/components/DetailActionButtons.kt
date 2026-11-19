@@ -50,6 +50,7 @@ import com.nuvio.app.core.ui.backdropControlColor
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_play
 import nuvio.composeapp.generated.resources.details_actions_menu_label
+import nuvio.composeapp.generated.resources.details_download
 import nuvio.composeapp.generated.resources.hero_add_to_library
 import nuvio.composeapp.generated.resources.hero_mark_unwatched
 import nuvio.composeapp.generated.resources.hero_mark_watched
@@ -260,6 +261,7 @@ fun DetailActions(
     onSaveLongClick: (() -> Unit)?,
     onDownloadClick: (() -> Unit)? = null,
     onMoreClick: (() -> Unit)? = null,
+    disabledPlayLabel: String? = null,
 ) {
     val shuffleAction = onShuffleClick?.let { onClick ->
         DetailSecondaryAction(
@@ -269,27 +271,24 @@ fun DetailActions(
             onClick = onClick,
         )
     }
-    // Download is always visible as a pinned action when available;
-    // Shuffle takes the pinned slot when actively enabled.
+    // Download is always visible as a pinned action when available; Shuffle keeps its place in
+    // the secondary list (or takes the pinned slot when there is nothing else to pin).
     val downloadAction = onDownloadClick?.let { onClick ->
         DetailSecondaryAction(
-            label = "Download",
+            label = stringResource(Res.string.details_download),
             icon = Icons.Default.CloudDownload,
             isActive = false,
             onClick = onClick,
         )
     }
-    val effectivePinnedAction = when {
-        shuffleAction != null && shuffleEnabled -> shuffleAction
-        downloadAction != null -> downloadAction
-        else -> null
-    }
+    val pinnedShuffle = downloadAction == null && shuffleEnabled
+    val effectivePinnedAction = downloadAction ?: shuffleAction?.takeIf { shuffleEnabled }
     DetailActionButtons(
-        playLabel = if (playEnabled) playLabel else stringResource(Res.string.playback_unavailable),
+        playLabel = if (playEnabled) playLabel else (disabledPlayLabel ?: stringResource(Res.string.playback_unavailable)),
         playEnabled = playEnabled,
         pinnedAction = effectivePinnedAction,
         secondaryActions = buildList {
-            if (!shuffleEnabled) shuffleAction?.let(::add)
+            if (!pinnedShuffle) shuffleAction?.let(::add)
             add(
                 DetailSecondaryAction(
                     label = stringResource(if (isWatched) Res.string.hero_mark_unwatched else Res.string.hero_mark_watched),

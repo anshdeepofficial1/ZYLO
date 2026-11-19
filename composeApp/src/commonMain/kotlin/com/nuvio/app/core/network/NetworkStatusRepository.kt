@@ -59,6 +59,7 @@ object NetworkStatusRepository {
     private const val REQUEST_TIMEOUT_MS = 4_500L
     private const val FOREGROUND_REFRESH_DELAY_MS = 6_000L
     private const val FOREGROUND_FAILURE_CONFIRM_DELAY_MS = 2_000L
+    private const val RECOVERY_RETRY_DELAY_MS = 10_000L
     private const val PUBLIC_PROBE_PRIMARY = "https://www.gstatic.com/generate_204"
     private const val PUBLIC_PROBE_FALLBACK = "https://cloudflare.com/cdn-cgi/trace"
 
@@ -71,6 +72,7 @@ object NetworkStatusRepository {
     private var pendingProbeAfterCurrent = false
     private var pendingProbeConfirmFailures = false
     private var foregroundRefreshJob: Job? = null
+    private var recoveryProbeJob: Job? = null
 
     fun ensureStarted() {
         if (started) return
@@ -118,16 +120,39 @@ object NetworkStatusRepository {
 
         val previousCondition = _uiState.value.condition
         var nextCondition = probeCondition()
+        // A single failed probe while the app was online is usually a transient timeout, not a
+        // dead backend. Confirm before showing "cannot reach servers" so playback and details do
+        // not get blocked by a false alarm.
         if (
-            confirmFailures &&
-            previousCondition == NetworkCondition.Online &&
-            nextCondition.isOfflineLike()
+            nextCondition.isOfflineLike() &&
+            (previousCondition == NetworkCondition.Online || confirmFailures)
         ) {
             delay(FOREGROUND_FAILURE_CONFIRM_DELAY_MS)
             nextCondition = probeCondition()
         }
 
         _uiState.value = NetworkStatusUiState(condition = nextCondition)
+        if (nextCondition.isOfflineLike()) {
+            scheduleRecoveryProbe()
+        } else {
+            recoveryProbeJob?.cancel()
+            recoveryProbeJob = null
+        }
+    }
+
+    /**
+     * Keeps retrying in the background while a probe reports an offline condition, so the app
+     * recovers by itself as soon as connectivity comes back instead of staying stuck on
+     * "cannot reach servers".
+     */
+    private fun scheduleRecoveryProbe() {
+        if (recoveryProbeJob?.isActive == true) return
+        recoveryProbeJob = scope.launch {
+            delay(RECOVERY_RETRY_DELAY_MS)
+            if (_uiState.value.condition.isOfflineLike()) {
+                requestRefresh(force = true)
+            }
+        }
     }
 
     private suspend fun probeCondition(): NetworkCondition {

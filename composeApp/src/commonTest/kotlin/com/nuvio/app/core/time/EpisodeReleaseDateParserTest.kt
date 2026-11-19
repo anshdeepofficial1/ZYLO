@@ -62,4 +62,18 @@ class EpisodeReleaseDateParserTest {
             daysUntilEpisodeRelease("2026-07-15", "2026-07-16T00:00:00Z") { "2026-07-15" },
         )
     }
+
+    @Test
+    fun shiftingIsoDatesHandlesWeekOffsetsAndMonthBoundaries() {
+        assertEquals("2026-04-29", shiftIsoDate("2026-05-06", -7))
+        assertEquals("2027-01-01", shiftIsoDate("2026-12-31", 1))
+        assertEquals("2024-02-29", shiftIsoDate("2024-02-28", 1))
+        assertNull(shiftIsoDate("not-a-date", 1))
+    }
+
+    @Test
+    fun epochDayRoundTripPreservesCalendarDate() {
+        assertEquals("2026-05-06", isoDateFromEpochDay(isoEpochDay("2026-05-06")))
+        assertEquals("1970-01-01", isoDateFromEpochDay(0L))
+    }
 }

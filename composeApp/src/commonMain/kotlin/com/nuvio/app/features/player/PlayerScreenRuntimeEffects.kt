@@ -217,9 +217,27 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         val startupTimeoutSeconds = playerSettingsUiState.streamAutoPlayFallbackStartupTimeoutSeconds
         delay(startupTimeoutSeconds * 1_000L)
         if (!initialLoadCompleted && errorMessage == null) {
-            tryFallbackToNextSourceAfterError(
-                getString(Res.string.player_error_source_startup_timeout, startupTimeoutSeconds),
-            )
+            val snapshot = playbackSnapshot
+            val mediaHealthy = snapshot.isPlaying ||
+                snapshot.positionMs > 0L ||
+                snapshot.bufferedPositionMs > 0L
+            if (mediaHealthy) {
+                // Media is already running; a missing "loaded" flag is not a source failure.
+                initialLoadCompleted = true
+            } else {
+                tryFallbackToNextSourceAfterError(
+                    getString(Res.string.player_error_source_startup_timeout, startupTimeoutSeconds),
+                )
+            }
+        }
+    }
+
+    // Keep the opening state in sync with real playback even if a snapshot arrives through a
+    // path that does not go through the platform surface callback.
+    LaunchedEffect(playbackSnapshot.isPlaying, playbackSnapshotKey) {
+        if (playbackSnapshot.isPlaying) {
+            initialLoadCompleted = true
+            errorMessage = null
         }
     }
 

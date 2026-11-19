@@ -46,6 +46,7 @@ import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaExternalRating
 import com.nuvio.app.features.details.formatRuntimeForDisplay
 import com.nuvio.app.features.details.formatMetaReleaseLineForDetails
+import com.nuvio.app.features.details.movieReleaseStatus
 import com.nuvio.app.features.home.isUnreleased
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_AUDIENCE
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_IMDB
@@ -107,7 +108,8 @@ fun DetailMetaInfo(
             key3 = meta.releaseDate,
         ) {
             if (!meta.type.equals("movie", ignoreCase = true)) return@produceState
-            if (meta.isUnreleased()) return@produceState
+            val releaseBlocked = meta.movieReleaseStatus()?.isBlocked ?: meta.isUnreleased()
+            if (releaseBlocked) return@produceState
             // Let the screen settle before spending a provider request on badge discovery.
             delay(1_200L)
             value = runCatching {

@@ -34,6 +34,7 @@ import com.nuvio.app.features.player.skip.internalSkipAction
 import com.nuvio.app.features.servers.ServerStreams
 import com.nuvio.app.features.streams.streamAddonInstanceId
 import com.nuvio.app.isIos
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -133,7 +134,12 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
     val fold = LocalFold.current?.takeIf { !isInPip }
     val videoModifier = if (fold != null) Modifier.fillMaxWidth().height(fold.top) else Modifier.fillMaxSize()
     val panelModifier = if (fold != null) Modifier.fillMaxSize().padding(top = fold.bottom) else Modifier.fillMaxSize()
-    val playbackGesturesEnabled = initialLoadCompleted && errorMessage == null
+    // The opening overlay and gestures follow the actual media state, not only the first
+    // non-loading snapshot: a stale snapshot must never hide a playing video behind a spinner.
+    val mediaPlaybackStarted = playbackSnapshot.isPlaying ||
+        playbackSnapshot.positionMs > 0L ||
+        playbackSnapshot.durationMs > 0L
+    val playbackGesturesEnabled = (initialLoadCompleted || mediaPlaybackStarted) && errorMessage == null
 
     BindAutoSyncRuntimeEffects() // AutoSync hook
 
@@ -227,7 +233,15 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                     onSnapshot = { snapshot ->
                         if (!active.value || !updatePlaybackSnapshot(snapshot, playbackKey)) return@PlatformPlayerSurface
                         refreshAudioTracksIfChanged()
-                        if (!snapshot.isLoading) initialLoadCompleted = true
+                        // Any real media signal (playing, progress or a known duration) means the
+                        // source loaded successfully. Waiting only for isLoading=false left the
+                        // loading overlay on screen while video/audio was already running.
+                        if (!snapshot.isLoading || snapshot.isPlaying ||
+                            snapshot.positionMs > 0L || snapshot.durationMs > 0L
+                        ) {
+                            initialLoadCompleted = true
+                        }
+                        if (snapshot.isPlaying) errorMessage = null
                         if (snapshot.isEnded) {
                             shouldPlay = false
                             controlsVisible = !playerControlsLocked
@@ -247,6 +261,23 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                             return@PlatformPlayerSurface
                         }
                         if (message != null && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
+                            return@PlatformPlayerSurface
+                        }
+                        // Some engines report a transient track/segment error while playback keeps
+                        // going. Do not cover a healthy video with a "playback problem" modal.
+                        if (message != null && playbackSnapshot.isPlaying) {
+                            val positionAtError = playbackSnapshot.positionMs
+                            scope.launch {
+                                delay(1_500)
+                                val stillHealthy = playbackSnapshot.isPlaying &&
+                                    playbackSnapshot.positionMs > positionAtError
+                                if (!stillHealthy && errorMessage == null) {
+                                    errorMessage = PlaybackErrorMessages.toUserFriendlyMessageSync(message)
+                                    scrubbingPositionMs = null
+                                    controlsVisible = !playerControlsLocked
+                                    removeFailedStreamFromCache()
+                                }
+                            }
                             return@PlatformPlayerSurface
                         }
                         errorMessage = PlaybackErrorMessages.toUserFriendlyMessageSync(message)
@@ -297,6 +328,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                 p2pRebufferMessage = p2pRebufferMessage,
                 p2pRebufferProgress = p2pRebufferProgress,
                 folded = fold != null,
+                mediaPlaybackStarted = mediaPlaybackStarted,
             )
         }
     }
@@ -522,6 +554,7 @@ private fun BoxScope.RenderPlaybackOverlays(
     p2pRebufferMessage: String?,
     p2pRebufferProgress: Float?,
     folded: Boolean,
+    mediaPlaybackStarted: Boolean,
 ) {
     runtime.run {
         PlayerPlaybackOverlays(
@@ -534,7 +567,10 @@ private fun BoxScope.RenderPlaybackOverlays(
         metrics = metrics,
         horizontalSafePadding = horizontalSafePadding,
         onUnlock = { unlockPlayerControls() },
-        showOpeningOverlay = playerSettingsUiState.showLoadingOverlay && !initialLoadCompleted && errorMessage == null,
+        showOpeningOverlay = playerSettingsUiState.showLoadingOverlay &&
+            !initialLoadCompleted &&
+            !mediaPlaybackStarted &&
+            errorMessage == null,
         backdropArtwork = background ?: poster,
         logo = logo,
         title = title,
@@ -542,7 +578,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             flushWatchProgress()
             args.onBack()
         },
-        openingLoadingMessage = if (playerSettingsUiState.showPlayerLoadingStatus) {
+        openingLoadingMessage = if (playerSettingsUiState.showPlayerLoadingStatus && !mediaPlaybackStarted) {
             p2pInitialLoadingMessage ?: playerLoadingStatusMessage(
                 showStatus = true,
                 controllerReady = playerController != null,

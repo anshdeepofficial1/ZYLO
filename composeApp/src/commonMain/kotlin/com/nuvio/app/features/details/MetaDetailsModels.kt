@@ -15,6 +15,10 @@ data class MetaDetails(
     val releaseInfo: String? = null,
     /** Full ISO release/first-air date when a provider supplies one; used for release gating. */
     val releaseDate: String? = null,
+    /** TMDB theatrical release window (types 2/3), when known. */
+    val theatricalReleaseDate: String? = null,
+    /** TMDB digital/OTT release date (type 4). Playback unlocks on this date when present. */
+    val ottReleaseDate: String? = null,
     /** TV: ISO last air date from TMDB (or addon) for year-range display. */
     val lastAirDate: String? = null,
     val status: String? = null,

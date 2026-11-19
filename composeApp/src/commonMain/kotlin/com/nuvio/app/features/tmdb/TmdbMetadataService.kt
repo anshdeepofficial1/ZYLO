@@ -1,6 +1,7 @@
 package com.nuvio.app.features.tmdb
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.core.time.parseIsoCalendarDate
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.details.MetaCompany
 import com.nuvio.app.features.details.MetaDetails
@@ -779,6 +780,8 @@ object TmdbMetadataService {
             description = enrichment.description,
             releaseInfo = enrichment.releaseInfo,
             releaseDate = enrichment.releaseDate,
+            theatricalReleaseDate = enrichment.theatricalReleaseDate,
+            ottReleaseDate = enrichment.ottReleaseDate,
             lastAirDate = enrichment.lastAirDate,
             status = enrichment.status,
             imdbRating = enrichment.rating?.formatRating(),
@@ -808,6 +811,15 @@ object TmdbMetadataService {
         if (enrichment == null && episodeMap.isEmpty()) return meta
 
         var updated = meta
+
+        if (enrichment != null) {
+            // Release windows are factual safety data: apply them regardless of the optional
+            // metadata toggles so playback can never unlock before the OTT release.
+            updated = updated.copy(
+                theatricalReleaseDate = enrichment.theatricalReleaseDate ?: updated.theatricalReleaseDate,
+                ottReleaseDate = enrichment.ottReleaseDate ?: updated.ottReleaseDate,
+            )
+        }
 
         if (enrichment != null && settings.useArtwork) {
             updated = updated.copy(
@@ -965,14 +977,16 @@ object TmdbMetadataService {
                     query = mapOf("include_image_language" to includeImageLanguage),
                 )
             }
-            val ageRating = async {
+            val releaseDates = async {
                 when (mediaType) {
-                    "tv" -> fetch<TmdbTvContentRatingsResponse>(
-                        endpoint = "tv/$numericId/content_ratings",
-                    )?.results.orEmpty().selectTvAgeRating(normalizedLanguage)
+                    "tv" -> MovieReleaseDatesInfo(
+                        ageRating = fetch<TmdbTvContentRatingsResponse>(
+                            endpoint = "tv/$numericId/content_ratings",
+                        )?.results.orEmpty().selectTvAgeRating(normalizedLanguage),
+                    )
                     else -> fetch<TmdbMovieReleaseDatesResponse>(
                         endpoint = "movie/$numericId/release_dates",
-                    )?.results.orEmpty().selectMovieAgeRating(normalizedLanguage)
+                    )?.results.orEmpty().toMovieReleaseDatesInfo(normalizedLanguage)
                 }
             }
             val moreLikeThis = async {
@@ -997,12 +1011,15 @@ object TmdbMetadataService {
                     emptyList()
                 }
             }
+            val releaseDatesInfo = releaseDates.await()
             Quadruple(
                 first = details.await(),
                 second = credits.await(),
                 third = images.await(),
                 fourth = EnrichmentPayload(
-                    ageRating = ageRating.await(),
+                    ageRating = releaseDatesInfo.ageRating,
+                    theatricalReleaseDate = releaseDatesInfo.theatricalReleaseDate,
+                    ottReleaseDate = releaseDatesInfo.ottReleaseDate,
                     moreLikeThis = moreLikeThis.await(),
                     trailers = trailers.await(),
                 ),
@@ -1060,6 +1077,8 @@ object TmdbMetadataService {
             writer = writers,
             releaseInfo = releaseInfo,
             releaseDate = releaseInfo,
+            theatricalReleaseDate = response.fourth.theatricalReleaseDate,
+            ottReleaseDate = response.fourth.ottReleaseDate,
             lastAirDate = lastAirDate,
             rating = details.voteAverage,
             runtimeMinutes = details.runtime ?: details.episodeRunTime.firstOrNull(),
@@ -1429,6 +1448,8 @@ internal data class TmdbEnrichment(
     val writer: List<String>,
     val releaseInfo: String?,
     val releaseDate: String? = null,
+    val theatricalReleaseDate: String? = null,
+    val ottReleaseDate: String? = null,
     val lastAirDate: String? = null,
     val rating: Double?,
     val runtimeMinutes: Int?,
@@ -1455,6 +1476,8 @@ internal data class TmdbEnrichment(
             writer.isNotEmpty() ||
             releaseInfo != null ||
             releaseDate != null ||
+            theatricalReleaseDate != null ||
+            ottReleaseDate != null ||
             lastAirDate != null ||
             rating != null ||
             runtimeMinutes != null ||
@@ -1471,6 +1494,8 @@ internal data class TmdbEnrichment(
 
 private data class EnrichmentPayload(
     val ageRating: String?,
+    val theatricalReleaseDate: String? = null,
+    val ottReleaseDate: String? = null,
     val moreLikeThis: List<MetaPreview>,
     val trailers: List<MetaTrailer>,
 )
@@ -1795,6 +1820,56 @@ private fun Double.formatRating(): String =
 
 private fun Int.formatRuntime(): String = "${this}m"
 
+private fun List<TmdbMovieReleaseDateCountry>.toMovieReleaseDatesInfo(
+    normalizedLanguage: String,
+): MovieReleaseDatesInfo = MovieReleaseDatesInfo(
+    ageRating = selectMovieAgeRating(normalizedLanguage),
+    theatricalReleaseDate = selectReleaseDateByType(normalizedLanguage, setOf(3, 2)),
+    ottReleaseDate = selectReleaseDateByType(normalizedLanguage, setOf(4)),
+)
+
+/**
+ * TMDB release types: 2/3 theatrical, 4 digital, 5 physical, 6 TV. Only digital (4) counts as an
+ * OTT release; physical and TV entries must not unlock streaming playback.
+ */
+private fun List<TmdbMovieReleaseDateCountry>.selectReleaseDateByType(
+    normalizedLanguage: String,
+    types: Set<Int>,
+): String? {
+    val preferredRegions = preferredAgeRatingRegions(normalizedLanguage)
+    val byRegion = associateBy { it.iso31661?.uppercase() }
+    preferredRegions.forEach { region ->
+        val date = byRegion[region]
+            ?.releaseDates
+            .orEmpty()
+            .filter { it.type in types }
+            .mapNotNull { parseTmdbReleaseCalendarDate(it.releaseDate) }
+            .minOrNull()
+        if (date != null) return date
+    }
+    return asSequence()
+        .flatMap { it.releaseDates.asSequence() }
+        .filter { it.type in types }
+        .mapNotNull { parseTmdbReleaseCalendarDate(it.releaseDate) }
+        .minOrNull()
+}
+
+/**
+ * TMDB sends release dates as midnight-UTC timestamps that represent a calendar date, so the
+ * date part is used verbatim. Timezone-converting them could unlock playback a day early.
+ */
+private fun parseTmdbReleaseCalendarDate(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.length < 10) return null
+    return parseIsoCalendarDate(value.take(10))
+}
+
+private data class MovieReleaseDatesInfo(
+    val ageRating: String? = null,
+    val theatricalReleaseDate: String? = null,
+    val ottReleaseDate: String? = null,
+)
+
 private fun List<TmdbMovieReleaseDateCountry>.selectMovieAgeRating(normalizedLanguage: String): String? {
     val preferredRegions = preferredAgeRatingRegions(normalizedLanguage)
     val byRegion = associateBy { it.iso31661?.uppercase() }
@@ -2017,6 +2092,8 @@ private data class TmdbMovieReleaseDateCountry(
 @Serializable
 private data class TmdbReleaseDate(
     val certification: String? = null,
+    val type: Int? = null,
+    @SerialName("release_date") val releaseDate: String? = null,
 )
 
 @Serializable

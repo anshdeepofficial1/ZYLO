@@ -49,7 +49,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.features.downloads.DownloadOptionsDialog
-import com.nuvio.app.features.downloads.DownloadSourceOption
+import com.nuvio.app.features.downloads.DownloadSelection
 import com.nuvio.app.features.downloads.DownloadSourceResolver
 import com.nuvio.app.features.downloads.DownloadsRepository
 import androidx.compose.material3.MaterialTheme
@@ -123,6 +123,7 @@ import com.nuvio.app.features.details.components.DetailSeriesContent
 import com.nuvio.app.features.details.components.DetailSeriesListEpisode
 import com.nuvio.app.features.details.components.DetailSeriesListHeader
 import com.nuvio.app.features.details.components.DetailTrailersSection
+import com.nuvio.app.features.details.components.MovieReleaseStatusCard
 import com.nuvio.app.features.details.components.EpisodeWatchedActionSheet
 import com.nuvio.app.features.details.components.RatingSheet
 import com.nuvio.app.features.details.components.formatRating
@@ -135,6 +136,7 @@ import com.nuvio.app.features.details.components.TabletDetailHero
 import com.nuvio.app.features.details.components.TrailerPlayerPopup
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.mdblist.MdbListSettingsRepository
+import com.nuvio.app.features.notifications.MovieReleaseRemindersRepository
 import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.library.PendingTrackingMembershipRemoval
 import com.nuvio.app.features.library.TrackingMembershipRemovalConfirmationHost
@@ -522,7 +524,16 @@ fun MetaDetailsScreen(
             displayedMeta != null -> {
                 val meta = displayedMeta
                 val metaPreview = remember(meta) { meta.toMetaPreview() }
-                val todayIsoDate = CurrentDateProvider.todayIsoDate()
+                var todayIsoDate by remember(meta.id) { mutableStateOf(CurrentDateProvider.todayIsoDate()) }
+                LaunchedEffect(meta.id) {
+                    while (true) {
+                        val currentDate = CurrentDateProvider.todayIsoDate()
+                        if (currentDate != todayIsoDate) {
+                            todayIsoDate = currentDate
+                        }
+                        delay(30_000L)
+                    }
+                }
                 val isSaved = remember(
                     libraryUiState.items,
                     libraryUiState.sections,
@@ -814,9 +825,27 @@ fun MetaDetailsScreen(
                 }
                 val primaryVideoId = seriesStreamVideoId ?: seriesAction?.videoId ?: meta.id
                 val shufflePoolEmpty = shuffleSettings.enabled && seriesAction == null
-                val isUnreleased = remember(meta) {
-                    meta.isUnreleased()
+                val movieReleaseStatus = remember(meta, todayIsoDate) {
+                    meta.movieReleaseStatus(todayIsoDate = todayIsoDate)
                 }
+                val movieReminderKeys by MovieReleaseRemindersRepository.reminderKeys.collectAsStateWithLifecycle()
+                val isMovieReminderSet = movieReleaseStatus?.isBlocked == true && meta.id in movieReminderKeys
+                LaunchedEffect(meta.id, movieReleaseStatus?.phase, movieReleaseStatus?.targetDate, movieReminderKeys) {
+                    val status = movieReleaseStatus ?: return@LaunchedEffect
+                    if (meta.id in movieReminderKeys) {
+                        MovieReleaseRemindersRepository.updateFromMeta(meta, status)
+                    }
+                }
+                val onMovieReminderClick: () -> Unit = {
+                    val status = movieReleaseStatus
+                    if (status != null) {
+                        MovieReleaseRemindersRepository.toggleReminder(meta, status)
+                    }
+                }
+                val isUnreleased = remember(meta, movieReleaseStatus) {
+                    movieReleaseStatus?.isBlocked ?: meta.isUnreleased()
+                }
+                val isDownloadAllowed = !isUnreleased
                 val isPrimaryPlayEnabled = !isUnreleased && (shufflePoolEmpty || playbackAvailability.canPlay(
                     type = meta.type,
                     videoId = primaryVideoId,
@@ -827,14 +856,47 @@ fun MetaDetailsScreen(
                 val playText = stringResource(Res.string.action_play)
                 val resumeText = stringResource(Res.string.action_resume)
                 val chooseEpisodesText = stringResource(Res.string.shuffle_change_selection)
+                val releaseInCinemasLabel = stringResource(Res.string.movie_release_play_in_cinemas)
+                val releaseComingSoonLabel = stringResource(Res.string.movie_release_coming_soon)
+                val releaseAwaitingOttLabel = stringResource(Res.string.movie_release_play_awaiting_ott)
+                val releaseStreamingLabel = movieReleaseStatus?.daysUntilTarget?.let { days ->
+                    if (days <= 1) {
+                        stringResource(Res.string.movie_release_play_streaming_tomorrow)
+                    } else {
+                        stringResource(Res.string.movie_release_play_streaming_in_days, days)
+                    }
+                } ?: ""
                 val isAnime = remember(meta) {
                     meta.genres.any { it.contains("animation", ignoreCase = true) || it.contains("anime", ignoreCase = true) } &&
                         (meta.country?.contains("Japan", ignoreCase = true) == true ||
                          meta.language?.equals("ja", ignoreCase = true) == true ||
                          meta.type.equals("anime", ignoreCase = true))
                 }
-                val playButtonLabel = remember(isUnreleased, isAnime, movieProgress, seriesAction, meta.type, hasEpisodes, playText, resumeText, shufflePoolEmpty, chooseEpisodesText) {
+                val playButtonLabel = remember(
+                    isUnreleased,
+                    movieReleaseStatus,
+                    isAnime,
+                    movieProgress,
+                    seriesAction,
+                    meta.type,
+                    hasEpisodes,
+                    playText,
+                    resumeText,
+                    shufflePoolEmpty,
+                    chooseEpisodesText,
+                    releaseInCinemasLabel,
+                    releaseComingSoonLabel,
+                    releaseAwaitingOttLabel,
+                    releaseStreamingLabel,
+                ) {
                     when {
+                        movieReleaseStatus != null && movieReleaseStatus.isBlocked -> when (movieReleaseStatus.phase) {
+                            MovieReleasePhase.Theatrical ->
+                                if (movieReleaseStatus.targetDate != null) releaseInCinemasLabel else releaseComingSoonLabel
+                            MovieReleasePhase.AwaitingOtt -> releaseAwaitingOttLabel
+                            MovieReleasePhase.OttScheduled -> releaseStreamingLabel
+                            MovieReleasePhase.Released -> playText
+                        }
                         isUnreleased -> "Unreleased" + (meta.releaseInfo?.let { " • $it" } ?: "")
                         isAnime -> "Play on AniDash"
                         shufflePoolEmpty -> chooseEpisodesText
@@ -845,7 +907,8 @@ fun MetaDetailsScreen(
                         else -> playText
                     }
                 }
-                val onPrimaryPlayClick: () -> Unit = {
+                val onPrimaryPlayClick: () -> Unit = play@{
+                    if (isUnreleased) return@play
                     if (isAnime) {
                         AniDashLauncher.launchAniDash(meta.name, meta.id, seriesAction?.seasonNumber, seriesAction?.episodeNumber)
                     } else when {
@@ -892,7 +955,12 @@ fun MetaDetailsScreen(
                 val manualPlayHandler = onPlayManually
                 val showManualPlayOption = manualPlayHandler != null && StreamAutoPlayPolicy.isEffectivelyEnabled(playerSettingsUiState)
                 val onPrimaryPlayLongClick: (() -> Unit)? = manualPlayHandler
-                    ?.takeIf { !shufflePoolEmpty && showManualPlayOption && playbackAvailability.canStream(meta.type, primaryVideoId) }
+                    ?.takeIf {
+                        !isUnreleased &&
+                            !shufflePoolEmpty &&
+                            showManualPlayOption &&
+                            playbackAvailability.canStream(meta.type, primaryVideoId)
+                    }
                     ?.let { manualPlay ->
                         {
                             when {
@@ -1106,7 +1174,7 @@ fun MetaDetailsScreen(
                                 episode = target.episodeNumber,
                             )
                         },
-                        onConfirm = { option: DownloadSourceOption ->
+                        onConfirm = { selection: DownloadSelection ->
                             downloadTarget = null
                             detailsScope.launch {
                                 val result = DownloadsRepository.enqueueFromStream(
@@ -1122,7 +1190,8 @@ fun MetaDetailsScreen(
                                     episodeNumber = target.episodeNumber,
                                     episodeTitle = target.episodeTitle,
                                     episodeThumbnail = target.episodeThumbnail,
-                                    stream = option.stream,
+                                    stream = selection.option.stream,
+                                    includeSubtitles = selection.includeSubtitles,
                                 )
                                 NuvioToastController.show(result.toastMessage())
                             }
@@ -1311,21 +1380,35 @@ fun MetaDetailsScreen(
                                                 onHeightChanged = { heroHeightPx.intValue = it },
                                                 actions = if (isSectionEnabled(MetaScreenSectionKey.ACTIONS)) {
                                                     {
-                                                        DetailActions(
-                                                            playLabel = playButtonLabel,
-                                                            playEnabled = isPrimaryPlayEnabled,
-                                                            isSaved = isSaved,
-                                                            isWatched = isWatched,
-                                                            isTablet = true,
-                                                            shuffleEnabled = shuffleSettings.enabled,
-                                                            onPlayClick = onPrimaryPlayClick,
-                                                            onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
-                                                            onShuffleClick = onShuffleClick,
-                                                            onWatchedClick = toggleWatched,
-                                                            onSaveClick = toggleSaved,
-                                                            onSaveLongClick = openLibraryListPicker,
-                                                            onDownloadClick = onDownloadClick,
-                                                        )
+                                                        Column {
+                                                            DetailActions(
+                                                                playLabel = playButtonLabel,
+                                                                playEnabled = isPrimaryPlayEnabled,
+                                                                isSaved = isSaved,
+                                                                isWatched = isWatched,
+                                                                isTablet = true,
+                                                                shuffleEnabled = shuffleSettings.enabled,
+                                                                onPlayClick = onPrimaryPlayClick,
+                                                                onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
+                                                                onShuffleClick = onShuffleClick,
+                                                                onWatchedClick = toggleWatched,
+                                                                onSaveClick = toggleSaved,
+                                                                onSaveLongClick = openLibraryListPicker,
+                                                                onDownloadClick = onDownloadClick.takeIf { isDownloadAllowed },
+                                                                disabledPlayLabel = movieReleaseStatus
+                                                                    ?.takeIf { it.isBlocked }
+                                                                    ?.let { playButtonLabel },
+                                                            )
+                                                            val releaseStatus = movieReleaseStatus
+                                                            if (releaseStatus != null && releaseStatus.isBlocked) {
+                                                                Spacer(modifier = Modifier.height(10.dp))
+                                                                MovieReleaseStatusCard(
+                                                                    status = releaseStatus,
+                                                                    reminderSet = isMovieReminderSet,
+                                                                    onReminderClick = onMovieReminderClick,
+                                                                )
+                                                            }
+                                                        }
                                                     }
                                                 } else {
                                                     null
@@ -1370,6 +1453,9 @@ fun MetaDetailsScreen(
                                         contentMaxWidth = if (isTablet && !useTabletLayout) contentMaxWidth else Dp.Unspecified,
                                         playButtonLabel = playButtonLabel,
                                         isPrimaryPlayEnabled = isPrimaryPlayEnabled,
+                                        movieReleaseStatus = movieReleaseStatus,
+                                        movieReminderSet = isMovieReminderSet,
+                                        onMovieReminderClick = onMovieReminderClick,
                                         isSaved = isSaved,
                                         isWatched = isWatched,
                                         onPrimaryPlayClick = onPrimaryPlayClick,
@@ -1445,7 +1531,7 @@ fun MetaDetailsScreen(
                                         onOpenMeta = onOpenMeta,
                                         onCastClick = onCastClick,
                                         onCompanyClick = onCompanyClick,
-                                        onDownloadClick = onDownloadClick,
+                                        onDownloadClick = onDownloadClick.takeIf { isDownloadAllowed },
                                         onDownloadSeasonClick = onDownloadSeasonClick,
                                         sharedTransitionScope = sharedTransitionScope,
                                         animatedVisibilityScope = animatedVisibilityScope,
@@ -2161,6 +2247,9 @@ private fun LazyListScope.configuredMetaSectionItems(
     contentMaxWidth: Dp,
     playButtonLabel: String,
     isPrimaryPlayEnabled: Boolean,
+    movieReleaseStatus: MovieReleaseStatus?,
+    movieReminderSet: Boolean,
+    onMovieReminderClick: () -> Unit,
     isSaved: Boolean,
     isWatched: Boolean,
     onPrimaryPlayClick: () -> Unit,
@@ -2248,6 +2337,9 @@ private fun LazyListScope.configuredMetaSectionItems(
                     horizontalScrollPadding = contentHorizontalPadding,
                     playButtonLabel = playButtonLabel,
                     isPrimaryPlayEnabled = isPrimaryPlayEnabled,
+                    movieReleaseStatus = movieReleaseStatus,
+                    movieReminderSet = movieReminderSet,
+                    onMovieReminderClick = onMovieReminderClick,
                     isSaved = isSaved,
                     isWatched = isWatched,
                     onPrimaryPlayClick = onPrimaryPlayClick,
@@ -2288,6 +2380,8 @@ private fun LazyListScope.configuredMetaSectionItems(
                     onOpenMeta = onOpenMeta,
                     onCastClick = onCastClick,
                     onCompanyClick = onCompanyClick,
+                    onDownloadClick = onDownloadClick,
+                    onDownloadSeasonClick = onDownloadSeasonClick,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
                 )
@@ -2477,6 +2571,9 @@ private fun ConfiguredMetaSections(
     horizontalScrollPadding: Dp,
     playButtonLabel: String,
     isPrimaryPlayEnabled: Boolean,
+    movieReleaseStatus: MovieReleaseStatus?,
+    movieReminderSet: Boolean,
+    onMovieReminderClick: () -> Unit,
     isSaved: Boolean,
     isWatched: Boolean,
     onPrimaryPlayClick: () -> Unit,
@@ -2544,21 +2641,35 @@ private fun ConfiguredMetaSections(
     fun RenderSection(key: MetaScreenSectionKey, showHeader: Boolean = true) {
         when (key) {
             MetaScreenSectionKey.ACTIONS -> {
-                DetailActions(
-                    playLabel = playButtonLabel,
-                    playEnabled = isPrimaryPlayEnabled,
-                    isSaved = isSaved,
-                    isWatched = isWatched,
-                    isTablet = isTablet,
-                    shuffleEnabled = shuffleEnabled,
-                    onPlayClick = onPrimaryPlayClick,
-                    onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
-                    onShuffleClick = onShuffleClick,
-                    onWatchedClick = onWatchedClick,
-                    onSaveClick = onSaveClick,
-                    onSaveLongClick = onSaveLongClick,
-                    onDownloadClick = onDownloadClick,
-                )
+                Column {
+                    DetailActions(
+                        playLabel = playButtonLabel,
+                        playEnabled = isPrimaryPlayEnabled,
+                        isSaved = isSaved,
+                        isWatched = isWatched,
+                        isTablet = isTablet,
+                        shuffleEnabled = shuffleEnabled,
+                        onPlayClick = onPrimaryPlayClick,
+                        onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
+                        onShuffleClick = onShuffleClick,
+                        onWatchedClick = onWatchedClick,
+                        onSaveClick = onSaveClick,
+                        onSaveLongClick = onSaveLongClick,
+                        onDownloadClick = onDownloadClick,
+                        disabledPlayLabel = movieReleaseStatus
+                            ?.takeIf { it.isBlocked }
+                            ?.let { playButtonLabel },
+                    )
+                    val releaseStatus = movieReleaseStatus
+                    if (releaseStatus != null && releaseStatus.isBlocked) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        MovieReleaseStatusCard(
+                            status = releaseStatus,
+                            reminderSet = movieReminderSet,
+                            onReminderClick = onMovieReminderClick,
+                        )
+                    }
+                }
             }
             MetaScreenSectionKey.OVERVIEW -> {
                 DetailMetaInfo(

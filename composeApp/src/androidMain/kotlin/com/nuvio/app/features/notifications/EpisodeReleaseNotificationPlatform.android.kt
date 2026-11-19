@@ -45,6 +45,8 @@ internal actual object EpisodeReleaseNotificationPlatform {
     private const val platformPreferencesName = "nuvio_episode_release_notifications_platform"
     private const val scheduledIdsKey = "scheduled_episode_release_ids"
     private const val workTag = "episode_release_notifications"
+    private const val movieScheduledIdsKey = "scheduled_movie_release_ids"
+    private const val movieWorkTag = "movie_release_reminders"
     internal const val channelId = "episode_release_notifications"
     internal const val workerRequestIdKey = "request_id"
     internal const val workerTitleKey = "title"
@@ -136,12 +138,46 @@ internal actual object EpisodeReleaseNotificationPlatform {
     }
 
     actual suspend fun scheduleEpisodeReleaseNotifications(requests: List<EpisodeReleaseNotificationRequest>) {
+        scheduleRequests(
+            requests = requests,
+            tag = workTag,
+            scheduledIdsKey = scheduledIdsKey,
+        )
+    }
+
+    actual suspend fun clearScheduledEpisodeReleaseNotifications() {
+        clearScheduledRequests(
+            tag = workTag,
+            scheduledIdsKey = scheduledIdsKey,
+        )
+    }
+
+    actual suspend fun scheduleMovieReleaseReminders(requests: List<EpisodeReleaseNotificationRequest>) {
+        scheduleRequests(
+            requests = requests,
+            tag = movieWorkTag,
+            scheduledIdsKey = movieScheduledIdsKey,
+        )
+    }
+
+    actual suspend fun clearScheduledMovieReleaseReminders() {
+        clearScheduledRequests(
+            tag = movieWorkTag,
+            scheduledIdsKey = movieScheduledIdsKey,
+        )
+    }
+
+    private suspend fun scheduleRequests(
+        requests: List<EpisodeReleaseNotificationRequest>,
+        tag: String,
+        scheduledIdsKey: String,
+    ) {
         val context = appContext ?: return
         ensureNotificationChannel()
 
         withContext(Dispatchers.IO) {
             val workManager = WorkManager.getInstance(context)
-            cancelTrackedWork(workManager)
+            cancelTrackedWork(workManager, tag, scheduledIdsKey)
 
             val nowEpochMs = System.currentTimeMillis()
             val scheduledIds = mutableListOf<String>()
@@ -162,12 +198,12 @@ internal actual object EpisodeReleaseNotificationPlatform {
                 val workRequest = OneTimeWorkRequestBuilder<EpisodeReleaseNotificationWorker>()
                     .setInputData(inputData)
                     .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
-                    .addTag(workTag)
+                    .addTag(tag)
                     .build()
 
                 awaitOperation(
                     workManager.enqueueUniqueWork(
-                        uniqueWorkName(request.requestId),
+                        uniqueWorkName(tag, request.requestId),
                         ExistingWorkPolicy.REPLACE,
                         workRequest,
                     ),
@@ -178,19 +214,22 @@ internal actual object EpisodeReleaseNotificationPlatform {
 
             preferences(context)
                 .edit()
-                .putStringSet(scopedScheduledIdsKey(), scheduledIds.toSet())
+                .putStringSet(ProfileScopedKey.of(scheduledIdsKey), scheduledIds.toSet())
                 .apply()
         }
     }
 
-    actual suspend fun clearScheduledEpisodeReleaseNotifications() {
+    private suspend fun clearScheduledRequests(
+        tag: String,
+        scheduledIdsKey: String,
+    ) {
         val context = appContext ?: return
         withContext(Dispatchers.IO) {
             val workManager = WorkManager.getInstance(context)
-            cancelTrackedWork(workManager)
+            cancelTrackedWork(workManager, tag, scheduledIdsKey)
             preferences(context)
                 .edit()
-                .remove(scopedScheduledIdsKey())
+                .remove(ProfileScopedKey.of(scheduledIdsKey))
                 .apply()
         }
     }
@@ -263,13 +302,17 @@ internal actual object EpisodeReleaseNotificationPlatform {
         )
     }
 
-    private fun cancelTrackedWork(workManager: WorkManager) {
+    private fun cancelTrackedWork(
+        workManager: WorkManager,
+        tag: String,
+        scheduledIdsKey: String,
+    ) {
         val context = appContext ?: return
         preferences(context)
-            .getStringSet(scopedScheduledIdsKey(), emptySet())
+            .getStringSet(ProfileScopedKey.of(scheduledIdsKey), emptySet())
             .orEmpty()
             .forEach { requestId ->
-                awaitOperation(workManager.cancelUniqueWork(uniqueWorkName(requestId)))
+                awaitOperation(workManager.cancelUniqueWork(uniqueWorkName(tag, requestId)))
             }
     }
 
@@ -279,8 +322,6 @@ internal actual object EpisodeReleaseNotificationPlatform {
 
     private fun preferences(context: Context) =
         context.getSharedPreferences(platformPreferencesName, Context.MODE_PRIVATE)
-
-    private fun scopedScheduledIdsKey(): String = ProfileScopedKey.of(scheduledIdsKey)
 
     private fun triggerAtEpochMs(releaseDateIso: String): Long? = runCatching {
         LocalDate.parse(releaseDateIso)
@@ -309,5 +350,5 @@ internal actual object EpisodeReleaseNotificationPlatform {
         notificationManager.createNotificationChannel(channel)
     }
 
-    private fun uniqueWorkName(requestId: String): String = "$workTag:$requestId"
+    private fun uniqueWorkName(tag: String, requestId: String): String = "$tag:$requestId"
 }

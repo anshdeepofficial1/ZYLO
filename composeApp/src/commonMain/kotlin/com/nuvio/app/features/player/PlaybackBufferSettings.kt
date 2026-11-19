@@ -11,6 +11,7 @@ internal data class PlaybackBufferSettings(
 ) {
     companion object {
         const val DEFAULT_MIN_BUFFER_MS = 15_000
+        /** Forward buffer: keep up to 100 seconds of media ahead of the playhead by default. */
         const val DEFAULT_MAX_BUFFER_MS = 100_000
         const val DEFAULT_BUFFER_FOR_PLAYBACK_MS = 5_000
         const val DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 3_000

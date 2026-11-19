@@ -70,6 +70,7 @@ import com.nuvio.app.core.ui.backdropControlColor
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.featherArtwork
 import com.nuvio.app.core.ui.rememberArtworkBackdrop
+import com.nuvio.app.features.downloads.DownloadPreferencesRepository
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -364,6 +365,7 @@ fun StreamsScreen(
                                     episodeTitle = episodeTitle,
                                     episodeThumbnail = episodeThumbnail,
                                     stream = resolved.stream,
+                                    includeSubtitles = DownloadPreferencesRepository.preferences.value.includeSubtitles,
                                 )
                                 NuvioToastController.show(result.toastMessage())
                             }
@@ -390,6 +392,7 @@ fun StreamsScreen(
                         episodeTitle = episodeTitle,
                         episodeThumbnail = episodeThumbnail,
                         stream = stream,
+                        includeSubtitles = DownloadPreferencesRepository.preferences.value.includeSubtitles,
                     )
                     NuvioToastController.show(result.toastMessage())
                 }
