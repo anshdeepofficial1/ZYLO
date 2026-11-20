@@ -20,6 +20,7 @@ import com.nuvio.app.features.streams.InstalledStreamAddonTarget
 import com.nuvio.app.features.streams.StreamAutoPlaySelector
 import com.nuvio.app.features.streams.StreamBadgePresentation
 import com.nuvio.app.features.streams.StreamBadgeSettingsRepository
+import com.nuvio.app.features.streams.StreamContentFilter
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLoadCompletion
 import com.nuvio.app.features.streams.StreamParser
@@ -211,7 +212,27 @@ object PlayerStreamsRepository {
         stateFlow.value = StreamsUiState()
 
         val streamBadgeRules = StreamBadgeSettingsRepository.snapshot()
+        val expectedMeta = MetaDetailsRepository.peek(type = type, id = videoId.substringBefore(":"))
+        val expectedTitle = expectedMeta?.name
+        val expectedYear = expectedMeta?.releaseDate
+            ?.trim()
+            ?.take(4)
+            ?.toIntOrNull()
+            ?: Regex("""(?<!\d)((?:19|20)\d{2})(?!\d)""")
+                .find(expectedMeta?.releaseInfo.orEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+        val expectedImdbId = expectedMeta?.imdbId
         val embeddedStreams = MetaDetailsRepository.findEmbeddedStreams(videoId)
+            .filter { stream ->
+                StreamContentFilter.isIdentityCompatible(
+                    stream = stream,
+                    expectedTitle = expectedTitle,
+                    expectedYear = expectedYear,
+                    expectedImdbId = expectedImdbId,
+                )
+            }
         if (embeddedStreams.isNotEmpty()) {
             log.d { "Using ${embeddedStreams.size} embedded streams for type=$type id=$videoId" }
             val group = AddonStreamGroup(
@@ -327,10 +348,22 @@ object PlayerStreamsRepository {
             }
 
             fun presentStreamGroup(group: AddonStreamGroup): AddonStreamGroup {
+                val compatibleGroup = group.copy(
+                    streams = group.streams
+                        .filter { stream ->
+                            StreamContentFilter.isIdentityCompatible(
+                                stream = stream,
+                                expectedTitle = expectedTitle,
+                                expectedYear = expectedYear,
+                                expectedImdbId = expectedImdbId,
+                            )
+                        }
+                        .sortedForGroupedDisplay(),
+                )
                 val badgeGroup = StreamBadgePresentation.apply(
-                    groups = listOf(group),
+                    groups = listOf(compatibleGroup),
                     rules = streamBadgeRules,
-                ).firstOrNull() ?: group
+                ).firstOrNull() ?: compatibleGroup
                 return DebridStreamPresentation.apply(
                     groups = listOf(badgeGroup),
                     settings = debridSettings,
@@ -423,6 +456,7 @@ object PlayerStreamsRepository {
                             addonName = displayName,
                             addonId = addon.addonId,
                             addonLogo = addon.manifest.logoUrl,
+                            expectedTitle = expectedTitle,
                         )
                     }.fold(
                         onSuccess = { streams ->
@@ -465,6 +499,13 @@ object PlayerStreamsRepository {
                                             addonName = providerGroup.addonName,
                                             addonId = providerGroup.addonId,
                                             includeScraperNameInSubtitle = includeScraperNameInSubtitle,
+                                        )
+                                    }.filter { stream ->
+                                        StreamContentFilter.isIdentityCompatible(
+                                            stream = stream,
+                                            expectedTitle = expectedTitle,
+                                            expectedYear = expectedYear,
+                                            expectedImdbId = expectedImdbId,
                                         )
                                     },
                                     error = null,

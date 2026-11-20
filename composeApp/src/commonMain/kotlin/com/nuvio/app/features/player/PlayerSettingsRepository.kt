@@ -5,6 +5,7 @@ import com.nuvio.app.features.player.skip.AutoSkipSegmentType
 import com.nuvio.app.features.player.skip.NextEpisodeThresholdMode
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySource
+import com.nuvio.app.features.streams.StreamQualityPreference
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,6 +82,7 @@ data class PlayerSettingsUiState(
     val vodCacheSizeMode: VodCacheSizeMode = VodCacheSizeMode.AUTO,
     val vodCacheSizeMb: Int = VodCacheSizing.DEFAULT_SIZE_MB,
     val streamAutoPlayMode: StreamAutoPlayMode = StreamAutoPlayMode.FIRST_STREAM,
+    val streamPreferredQuality: StreamQualityPreference = StreamQualityPreference.HIGHEST_AVAILABLE,
     val streamAutoPlaySource: StreamAutoPlaySource = StreamAutoPlaySource.ALL_SOURCES,
     val streamAutoPlaySelectedAddons: Set<String> = emptySet(),
     val streamAutoPlaySelectedPlugins: Set<String> = emptySet(),
@@ -195,6 +197,7 @@ object PlayerSettingsRepository {
     private var vodCacheSizeMode = VodCacheSizeMode.AUTO
     private var vodCacheSizeMb = VodCacheSizing.DEFAULT_SIZE_MB
     private var streamAutoPlayMode = StreamAutoPlayMode.FIRST_STREAM
+    private var streamPreferredQuality = StreamQualityPreference.HIGHEST_AVAILABLE
     private var streamAutoPlaySource = StreamAutoPlaySource.ALL_SOURCES
     private var streamAutoPlaySelectedAddons: Set<String> = emptySet()
     private var streamAutoPlaySelectedPlugins: Set<String> = emptySet()
@@ -294,6 +297,7 @@ object PlayerSettingsRepository {
         vodCacheSizeMb = VodCacheSizing.DEFAULT_SIZE_MB
         applyExoPlayerNativeMemory(false)
         streamAutoPlayMode = StreamAutoPlayMode.FIRST_STREAM
+        streamPreferredQuality = StreamQualityPreference.HIGHEST_AVAILABLE
         streamAutoPlaySource = StreamAutoPlaySource.ALL_SOURCES
         streamAutoPlaySelectedAddons = emptySet()
         streamAutoPlaySelectedPlugins = emptySet()
@@ -436,6 +440,9 @@ object PlayerSettingsRepository {
         streamAutoPlayMode = PlayerSettingsStorage.loadStreamAutoPlayMode()
             ?.let { runCatching { StreamAutoPlayMode.valueOf(it) }.getOrNull() }
             ?: StreamAutoPlayMode.FIRST_STREAM
+        streamPreferredQuality = PlayerSettingsStorage.loadStreamPreferredQuality()
+            ?.let { runCatching { StreamQualityPreference.valueOf(it) }.getOrNull() }
+            ?: StreamQualityPreference.HIGHEST_AVAILABLE
         streamAutoPlaySource = PlayerSettingsStorage.loadStreamAutoPlaySource()
             ?.let { runCatching { StreamAutoPlaySource.valueOf(it) }.getOrNull() }
             ?: StreamAutoPlaySource.ALL_SOURCES
@@ -964,6 +971,14 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveStreamAutoPlayMode(mode.name)
     }
 
+    fun setStreamPreferredQuality(quality: StreamQualityPreference) {
+        ensureLoaded()
+        if (streamPreferredQuality == quality) return
+        streamPreferredQuality = quality
+        publish()
+        PlayerSettingsStorage.saveStreamPreferredQuality(quality.name)
+    }
+
     fun setStreamAutoPlaySource(source: StreamAutoPlaySource) {
         ensureLoaded()
         val normalizedSource = normalizeStreamAutoPlaySource(source)
@@ -1366,6 +1381,7 @@ object PlayerSettingsRepository {
             vodCacheSizeMode = vodCacheSizeMode,
             vodCacheSizeMb = vodCacheSizeMb,
             streamAutoPlayMode = streamAutoPlayMode,
+            streamPreferredQuality = streamPreferredQuality,
             streamAutoPlaySource = streamAutoPlaySource,
             streamAutoPlaySelectedAddons = streamAutoPlaySelectedAddons,
             streamAutoPlaySelectedPlugins = streamAutoPlaySelectedPlugins,

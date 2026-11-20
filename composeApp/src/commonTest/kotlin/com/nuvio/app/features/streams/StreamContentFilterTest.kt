@@ -34,6 +34,38 @@ class StreamContentFilterTest {
         assertFalse(StreamContentFilter.matchesExpectedTitle(spoofed, "Avengers: Doomsday"))
         assertTrue(StreamContentFilter.isSpoofedRelease(spoofed))
         assertTrue(StreamContentFilter.isBlockedPrint(spoofed))
+        assertFalse(
+            StreamContentFilter.isIdentityCompatible(
+                stream = spoofed,
+                expectedTitle = "Avengers: Doomsday",
+                expectedYear = 2026,
+            ),
+        )
+    }
+
+    @Test
+    fun `encore file is accepted only from the dedicated encore page`() {
+        val encore = stream(
+            title = "Avengers.Endgame.Encore.2026.2160p.WEB-DL",
+            url = "https://cdn.example/Avengers.Endgame.Encore.2026.2160p.mkv",
+            filename = "Avengers.Endgame.Encore.2026.2160p.WEB-DL.mkv",
+        )
+
+        assertFalse(StreamContentFilter.isBlockedPrint(encore, "Avengers Endgame: Encore"))
+        assertTrue(
+            StreamContentFilter.isIdentityCompatible(
+                stream = encore,
+                expectedTitle = "Avengers Endgame: Encore",
+                expectedYear = 2026,
+            ),
+        )
+        assertFalse(
+            StreamContentFilter.isIdentityCompatible(
+                stream = encore,
+                expectedTitle = "Avengers: Endgame",
+                expectedYear = 2019,
+            ),
+        )
     }
 
     @Test
@@ -59,6 +91,22 @@ class StreamContentFilterTest {
         )
 
         assertTrue(StreamContentFilter.matchesExpectedTitle(genuine, "Avengers: Endgame"))
+    }
+
+    @Test
+    fun `generic addon technical labels are not treated as a conflicting title`() {
+        val genericAddonStream = stream(
+            title = "1080p WEB-DL x265 DDP 5.1",
+            url = "https://cdn.example/video/7f29a181b6714c22/master.m3u8",
+        )
+
+        assertTrue(
+            StreamContentFilter.isIdentityCompatible(
+                stream = genericAddonStream,
+                expectedTitle = "Carry On Jatta 4",
+                expectedYear = 2026,
+            ),
+        )
     }
 
     @Test
@@ -160,6 +208,15 @@ class StreamContentFilterTest {
             ZyloStreams.prepareDirectStreams(
                 streams = listOf(genuine, spoofed.copy(url = "https://cdn.example/other.mkv")),
                 expectedTitle = "Avengers: Endgame",
+                verifyTitle = true,
+            ).size,
+        )
+        assertEquals(
+            1,
+            ZyloStreams.prepareDirectStreams(
+                streams = listOf(spoofed),
+                expectedTitle = "Avengers Endgame: Encore",
+                expectedYear = 2026,
                 verifyTitle = true,
             ).size,
         )

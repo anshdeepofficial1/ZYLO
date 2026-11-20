@@ -48,7 +48,7 @@ object StreamsRepository {
     ): String =
         "$type::$videoId::$season::$episode::$manualSelection"
 
-    fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+    fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false, forceAutoPlay: Boolean = false) {
         PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
@@ -58,10 +58,11 @@ object StreamsRepository {
             episode = episode,
             manualSelection = manualSelection,
             forceRefresh = false,
+            forceAutoPlay = forceAutoPlay,
         )
     }
 
-    fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+    fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false, forceAutoPlay: Boolean = false) {
         PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
@@ -71,10 +72,11 @@ object StreamsRepository {
             episode = episode,
             manualSelection = manualSelection,
             forceRefresh = true,
+            forceAutoPlay = forceAutoPlay,
         )
     }
 
-    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
+    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean, forceAutoPlay: Boolean = false) {
         val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
             PluginRepository.uiState.value
@@ -105,12 +107,30 @@ object StreamsRepository {
 
         PlayerSettingsRepository.ensureLoaded()
         val playerSettings = PlayerSettingsRepository.uiState.value
+        val expectedMeta = MetaDetailsRepository.peek(
+            type = type,
+            id = parentMetaId ?: videoId.substringBefore(":"),
+        )
+        val expectedTitle = expectedMeta?.name
+        val expectedYear = expectedMeta?.releaseDate
+            ?.trim()
+            ?.take(4)
+            ?.toIntOrNull()
+            ?: Regex("""(?<!\d)((?:19|20)\d{2})(?!\d)""")
+                .find(expectedMeta?.releaseInfo.orEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+        val expectedImdbId = expectedMeta?.imdbId
         val debridSettings = DebridSettingsRepository.snapshot()
         val streamBadgeRules = StreamBadgeSettingsRepository.snapshot()
-        val autoPlayMode = playerSettings.streamAutoPlayMode
-        val isAutoPlayEnabled = !manualSelection && autoPlayMode != StreamAutoPlayMode.MANUAL &&
-            !(autoPlayMode == StreamAutoPlayMode.REGEX_MATCH &&
-                !StreamAutoPlayPolicy.isRegexSelectionConfigured(playerSettings.streamAutoPlayRegex))
+        val autoPlayMode = if (forceAutoPlay) StreamAutoPlayMode.FIRST_STREAM else playerSettings.streamAutoPlayMode
+        val isAutoPlayEnabled = forceAutoPlay ||
+            (
+                !manualSelection && autoPlayMode != StreamAutoPlayMode.MANUAL &&
+                    !(autoPlayMode == StreamAutoPlayMode.REGEX_MATCH &&
+                        !StreamAutoPlayPolicy.isRegexSelectionConfigured(playerSettings.streamAutoPlayRegex))
+                )
 
         // Look up persisted binge group when both settings are enabled
         val persistedBingeGroup = if (
@@ -143,7 +163,14 @@ object StreamsRepository {
         }
 
         val embeddedStreams = MetaDetailsRepository.findEmbeddedStreams(videoId)
-            .filterNot(StreamContentFilter::isBlockedPrint)
+            .filter { stream ->
+                StreamContentFilter.isIdentityCompatible(
+                    stream = stream,
+                    expectedTitle = expectedTitle,
+                    expectedYear = expectedYear,
+                    expectedImdbId = expectedImdbId,
+                )
+            }
         if (embeddedStreams.isNotEmpty()) {
             log.d { "Using ${embeddedStreams.size} embedded streams for type=$type id=$videoId" }
             val group = AddonStreamGroup(
@@ -270,6 +297,11 @@ object StreamsRepository {
                     bingeGroupOnly = bingeGroupOnly,
                     debridEnabled = debridSettings.canResolvePlayableLinks,
                     activeResolverProviderId = debridSettings.activeResolverProviderId,
+                    preferredAudioLanguage = playerSettings.preferredAudioLanguage,
+                    preferredQuality = playerSettings.streamPreferredQuality,
+                    expectedTitle = expectedTitle,
+                    expectedYear = expectedYear,
+                    expectedImdbId = expectedImdbId,
                 )
 
             fun settleAutoPlay(evaluation: StreamAutoPlayEvaluation) {
@@ -357,10 +389,20 @@ object StreamsRepository {
             }
 
             fun presentStreamGroup(group: AddonStreamGroup): AddonStreamGroup {
+                val compatibleStreams = group.streams
+                    .filter { stream ->
+                        StreamContentFilter.isIdentityCompatible(
+                            stream = stream,
+                            expectedTitle = expectedTitle,
+                            expectedYear = expectedYear,
+                            expectedImdbId = expectedImdbId,
+                        )
+                    }
+                val qualitySortedGroup = group.copy(streams = compatibleStreams.sortedForGroupedDisplay())
                 val badgeGroup = StreamBadgePresentation.apply(
-                    groups = listOf(group),
+                    groups = listOf(qualitySortedGroup),
                     rules = streamBadgeRules,
-                ).firstOrNull() ?: group
+                ).firstOrNull() ?: qualitySortedGroup
                 return DebridStreamPresentation.apply(
                     groups = listOf(badgeGroup),
                     settings = debridSettings,
@@ -498,6 +540,7 @@ object StreamsRepository {
                             addonName = displayName,
                             addonId = addon.addonId,
                             addonLogo = addon.manifest.logoUrl,
+                            expectedTitle = expectedTitle,
                         )
                     }.fold(
                         onSuccess = { streams ->
@@ -553,7 +596,14 @@ object StreamsRepository {
                                             addonId = providerGroup.addonId,
                                             includeScraperNameInSubtitle = includeScraperNameInSubtitle,
                                         )
-                                    }.filterNot(StreamContentFilter::isBlockedPrint),
+                                    }.filter { stream ->
+                                        StreamContentFilter.isIdentityCompatible(
+                                            stream = stream,
+                                            expectedTitle = expectedTitle,
+                                            expectedYear = expectedYear,
+                                            expectedImdbId = expectedImdbId,
+                                        )
+                                    },
                                     error = null,
                                 )
                             },

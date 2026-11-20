@@ -52,6 +52,24 @@ object TmdbCollectionSourceResolver {
         }
     }
 
+    /** Resolves one TMDB title into the same preview model used by home and search rows. */
+    suspend fun fetchPreview(type: String, id: Int): MetaPreview? = withContext(Dispatchers.Default) {
+        val settings = TmdbSettingsRepository.snapshot()
+        val apiKey = TmdbSettingsRepository.effectiveApiKey()
+        val language = normalizeTmdbLanguage(settings.language)
+        val mediaType = if (type.equals("series", ignoreCase = true) || type.equals("tv", ignoreCase = true)) {
+            TmdbCollectionMediaType.TV
+        } else {
+            TmdbCollectionMediaType.MOVIE
+        }
+        val endpointType = if (mediaType == TmdbCollectionMediaType.TV) "tv" else "movie"
+        fetch<TmdbListItem>(
+            endpoint = "$endpointType/$id",
+            apiKey = apiKey,
+            query = mapOf("language" to language),
+        )?.toPreview(mediaType)
+    }
+
     suspend fun importMetadata(sourceType: TmdbCollectionSourceType, id: Int): TmdbSourceImportMetadata =
         withContext(Dispatchers.Default) {
             val settings = TmdbSettingsRepository.snapshot()

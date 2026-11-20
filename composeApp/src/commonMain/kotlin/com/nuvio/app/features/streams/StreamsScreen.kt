@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,6 +73,7 @@ import com.nuvio.app.core.ui.featherArtwork
 import com.nuvio.app.core.ui.rememberArtworkBackdrop
 import com.nuvio.app.features.downloads.DownloadPreferencesRepository
 import com.nuvio.app.features.downloads.DownloadsRepository
+import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -165,6 +167,36 @@ fun StreamsScreen(
     val noDirectStreamLinkText = stringResource(Res.string.streams_no_direct_link)
     var streamActionsTarget by remember(videoId) { mutableStateOf<StreamItem?>(null) }
     val downloadScope = rememberCoroutineScope()
+    val refetchingText = stringResource(Res.string.streams_refetching)
+    val refetchFailedText = stringResource(Res.string.streams_refetch_failed)
+    val refetchContent: () -> Unit = {
+        downloadScope.launch {
+            NuvioToastController.show(refetchingText)
+            clearPersistedStreamLinkForRefetch(
+                type = type,
+                videoId = videoId,
+                parentMetaId = parentMetaId,
+                season = seasonNumber,
+                episode = episodeNumber,
+            )
+            StreamQualityRepository.invalidateAll()
+            val freshMeta = runCatching {
+                MetaDetailsRepository.refetch(type = parentMetaType, id = parentMetaId)
+            }.getOrNull()
+            StreamsRepository.reload(
+                type = type,
+                videoId = videoId,
+                parentMetaId = parentMetaId,
+                season = seasonNumber,
+                episode = episodeNumber,
+                manualSelection = false,
+                forceAutoPlay = true,
+            )
+            if (freshMeta == null) {
+                NuvioToastController.show(refetchFailedText)
+            }
+        }
+    }
     var preferredFilterApplied by remember(videoId) { mutableStateOf(false) }
     val episodeProgress = watchProgressUiState.progressForVideo(
         videoId = videoId,
@@ -405,8 +437,33 @@ fun StreamsScreen(
                     effectiveResumeProgressFraction,
                 )
             },
+            onRefetch = refetchContent,
         )
     }
+}
+
+internal fun clearPersistedStreamLinkForRefetch(
+    type: String,
+    videoId: String,
+    parentMetaId: String?,
+    season: Int?,
+    episode: Int?,
+) {
+    StreamLinkCacheRepository.remove(
+        StreamLinkCacheRepository.contentKey(
+            type = type,
+            videoId = videoId,
+            parentMetaId = parentMetaId,
+            season = season,
+            episode = episode,
+        ),
+    )
+    // Refetch means the user no longer trusts the previously successful source. Clear the
+    // series-level source affinity as well, otherwise its old binge group/filename/info hash can
+    // immediately win selection again even though the exact episode link was removed above.
+    parentMetaId
+        ?.takeIf { it.isNotBlank() }
+        ?.let(BingeGroupCacheRepository::remove)
 }
 
 @Composable
@@ -826,52 +883,108 @@ private fun LazyListScope.streamSection(
     val showSourceHeaders = sortedSources.size > 1
 
     sortedSources.forEachIndexed { sourceIndex, sourceName ->
-        val sourceStreams = streamsBySource[sourceName].orEmpty()
+        val sourceStreams = streamsBySource[sourceName].orEmpty().sortedForGroupedDisplay()
         if (showSourceHeaders) {
             item(key = "source_${sectionKey}_$sourceIndex") {
                 StreamSourceHeader(sourceName = sourceName)
             }
         }
 
-        itemsIndexed(
-            items = sourceStreams,
-            key = { index, stream ->
-                streamCardRenderKey(
-                    sectionKey = sectionKey,
-                    sourceIndex = sourceIndex,
-                    itemIndex = index,
-                    stream = stream,
+        // Short-list by real print quality: 4K first, then 1080p, 720p, 480p.
+        val showQualityHeaders = sourceStreams
+            .mapNotNull { stream -> StreamContentFilter.detectQuality(stream)?.rank }
+            .distinct()
+            .size > 1
+        val entries = buildList {
+            var lastQualityRank: Int? = null
+            sourceStreams.forEachIndexed { index, stream ->
+                val quality = StreamContentFilter.detectQuality(stream)
+                if (showQualityHeaders && quality != null && quality.rank != lastQualityRank) {
+                    add(
+                        StreamListEntry(
+                            key = "quality_${sectionKey}_${sourceIndex}_${quality.name}",
+                            qualityLabel = quality.label,
+                            stream = null,
+                        ),
+                    )
+                    lastQualityRank = quality.rank
+                }
+                add(
+                    StreamListEntry(
+                        key = streamCardRenderKey(
+                            sectionKey = sectionKey,
+                            sourceIndex = sourceIndex,
+                            itemIndex = index,
+                            stream = stream,
+                        ),
+                        qualityLabel = null,
+                        stream = stream,
+                    ),
                 )
-            },
-        ) { _, stream ->
-            val isSelectable = stream.isSelectableForPlayback(debridEnabled)
-            val isUnsupportedTorrentStream =
-                stream.needsLocalDebridResolve &&
-                    !AppFeaturePolicy.p2pEnabled &&
-                    !(debridEnabled && stream.isAddonDebridCandidate)
-            StreamCard(
-                stream = stream,
-                enabled = isSelectable || isUnsupportedTorrentStream,
-                appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
-                showFileSizeBadges = showFileSizeBadges,
-                showAddonLogo = showAddonLogo,
-                badgePlacement = badgePlacement,
-                onClick = {
-                    if (isSelectable) {
-                        onStreamSelected(stream, resumePositionMs, resumeProgressFraction)
-                    } else if (isUnsupportedTorrentStream) {
-                        NuvioToastController.show(torrentNotSupportedText)
-                    }
-                },
-                onLongClick = {
-                    if (stream.playableDirectUrl != null || stream.shouldOpenExternally || stream.isAddonDebridCandidate) {
-                        onStreamLongPress(stream)
-                    }
-                },
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+            }
+        }
+
+        items(
+            items = entries,
+            key = { entry -> entry.key },
+        ) { entry ->
+            val stream = entry.stream
+            if (stream == null) {
+                StreamQualityHeader(qualityLabel = entry.qualityLabel.orEmpty())
+            } else {
+                val isSelectable = stream.isSelectableForPlayback(debridEnabled)
+                val isUnsupportedTorrentStream =
+                    stream.needsLocalDebridResolve &&
+                        !AppFeaturePolicy.p2pEnabled &&
+                        !(debridEnabled && stream.isAddonDebridCandidate)
+                StreamCard(
+                    stream = stream,
+                    enabled = isSelectable || isUnsupportedTorrentStream,
+                    appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
+                    showFileSizeBadges = showFileSizeBadges,
+                    showAddonLogo = showAddonLogo,
+                    badgePlacement = badgePlacement,
+                    onClick = {
+                        if (isSelectable) {
+                            onStreamSelected(stream, resumePositionMs, resumeProgressFraction)
+                        } else if (isUnsupportedTorrentStream) {
+                            NuvioToastController.show(torrentNotSupportedText)
+                        }
+                    },
+                    onLongClick = {
+                        if (stream.playableDirectUrl != null || stream.shouldOpenExternally || stream.isAddonDebridCandidate) {
+                            onStreamLongPress(stream)
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
         }
     }
+}
+
+private data class StreamListEntry(
+    val key: String,
+    val qualityLabel: String?,
+    val stream: StreamItem?,
+)
+
+@Composable
+private fun StreamQualityHeader(
+    qualityLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    if (qualityLabel.isBlank()) return
+    Text(
+        text = qualityLabel,
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.6.sp,
+        ),
+        color = MaterialTheme.colorScheme.primary,
+    )
 }
 
 internal fun streamSectionRenderKey(
@@ -961,6 +1074,7 @@ private fun StreamActionsSheet(
     onCopyLink: (StreamItem) -> Unit,
     onDownload: (StreamItem) -> Unit,
     onOpen: (StreamItem, openExternally: Boolean) -> Unit,
+    onRefetch: (() -> Unit)? = null,
 ) {
     if (stream == null) return
 
@@ -1008,6 +1122,18 @@ private fun StreamActionsSheet(
             }
 
             NuvioBottomSheetDivider()
+            if (onRefetch != null) {
+                NuvioBottomSheetActionRow(
+                    icon = Icons.Rounded.Refresh,
+                    title = stringResource(Res.string.streams_refetch),
+                    onClick = {
+                        onRefetch()
+                        coroutineScope.launch {
+                            dismissNuvioBottomSheet(sheetState = sheetState, onDismiss = onDismiss)
+                        }
+                    },
+                )
+            }
             NuvioBottomSheetActionRow(
                 icon = Icons.Rounded.ContentCopy,
                 title = stringResource(Res.string.streams_copy_link),

@@ -189,19 +189,23 @@ private fun ReleaseCountdownText(targetDate: String?) {
     val hours = (totalMinutes / 60L) % 24L
     val minutes = totalMinutes % 60L
     val seconds = (remainingMs / 1_000L) % 60L
+    // Compose resources only support "%n$d"/"%n$s" (no width/zero-pad), so pad here.
+    val hoursText = hours.toInt().toString().padStart(2, '0')
+    val minutesText = minutes.toInt().toString().padStart(2, '0')
+    val secondsText = seconds.toInt().toString().padStart(2, '0')
     val text = if (days > 0L) {
         stringResource(
             Res.string.movie_release_countdown_days,
             days.toInt(),
-            hours.toInt(),
-            minutes.toInt(),
+            hoursText,
+            minutesText,
         )
     } else {
         stringResource(
             Res.string.movie_release_countdown_hours,
-            hours.toInt(),
-            minutes.toInt(),
-            seconds.toInt(),
+            hoursText,
+            minutesText,
+            secondsText,
         )
     }
     Text(

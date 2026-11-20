@@ -236,6 +236,29 @@ object HomeRepository {
 
     private suspend fun HomeCatalogDefinition.toSection(forceRefresh: Boolean): HomeCatalogSection {
         serverConnectionId?.let { connectionId -> return toServerSection(connectionId) }
+        if (key == SpotlightCatalog.CATALOG_KEY) {
+            val rawItems = runCatching { SpotlightCatalog.previews() }.getOrDefault(emptyList())
+            val items = if (HomeCatalogSettingsRepository.snapshot().hideUnreleasedContent) {
+                rawItems.filterReleasedItems(CurrentDateProvider.todayIsoDate())
+            } else {
+                rawItems
+            }
+            return HomeCatalogSection(
+                key = key,
+                title = defaultTitle,
+                subtitle = addonName,
+                addonName = addonName,
+                target = CatalogTarget.Addon(
+                    manifestUrl = "",
+                    contentType = type,
+                    catalogId = catalogId,
+                    supportsPagination = false,
+                ),
+                items = items,
+                availableItemCount = items.size,
+                hasMore = false,
+            )
+        }
         if (key.startsWith("zylo:")) {
             val isCartoons = catalogId == "zylo_cartoons"
             val source = if (isCartoons) {

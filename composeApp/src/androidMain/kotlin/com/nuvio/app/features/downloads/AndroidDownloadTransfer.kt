@@ -77,20 +77,26 @@ internal suspend fun transferAndroidDownload(
                     onHeaders(totalBytes, responseValidator)
                     var downloaded = startingBytes
                     onProgress(downloaded, totalBytes)
+                    var lastProgressAtMs = System.currentTimeMillis()
                     body.byteStream().use { input ->
                         FileOutputStream(partial, resumed && offset > 0L).use { output ->
-                            val buffer = ByteArray(64 * 1024)
+                            val buffer = ByteArray(256 * 1024)
                             while (true) {
                                 ensureActive()
                                 val size = input.read(buffer)
                                 if (size == -1) break
                                 output.write(buffer, 0, size)
                                 downloaded += size
-                                onProgress(downloaded, totalBytes)
+                                val now = System.currentTimeMillis()
+                                if (now - lastProgressAtMs >= 250L) {
+                                    lastProgressAtMs = now
+                                    onProgress(downloaded, totalBytes)
+                                }
                             }
                             output.fd.sync()
                         }
                     }
+                    onProgress(downloaded, totalBytes)
                     ensureActive()
                     if (totalBytes != null && downloaded != totalBytes) {
                         throw IOException("Download ended before all bytes were received")

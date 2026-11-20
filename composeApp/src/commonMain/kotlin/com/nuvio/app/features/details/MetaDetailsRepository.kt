@@ -9,6 +9,7 @@ import com.nuvio.app.features.addons.fetchAddonResponseText
 import com.nuvio.app.core.poster.withCustomPosterUrls
 import com.nuvio.app.features.addons.supportsResource
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.SpotlightCatalog
 import com.nuvio.app.features.home.filterReleasedItems
 import com.nuvio.app.features.mdblist.MdbListMetadataService
 import com.nuvio.app.features.mdblist.MdbListSettingsRepository
@@ -155,9 +156,14 @@ object MetaDetailsRepository {
                     tryFetchMeta(manifest, type, metaLookupId, includeMdbList = false)
                 }
                 if (result != null) {
+                    val requestedMeta = SpotlightCatalog.applyMeta(
+                        meta = result,
+                        type = type,
+                        requestedId = id,
+                    )
                     publishLoadedMeta(
                         requestKey = requestKey,
-                        meta = result,
+                        meta = requestedMeta,
                         fallbackItemId = metaLookupId,
                         fallbackItemType = type,
                         mdbListSettings = mdbListSettings,
@@ -206,9 +212,16 @@ object MetaDetailsRepository {
         _uiState.value = MetaDetailsUiState()
     }
 
-    suspend fun fetch(type: String, id: String, cacheResult: Boolean = true): MetaDetails? {
+    suspend fun fetch(
+        type: String,
+        id: String,
+        cacheResult: Boolean = true,
+        forceRefresh: Boolean = false,
+    ): MetaDetails? {
         val requestKey = "$type:$id"
-        cachedMetaByRequestKey[requestKey]?.let { return it.baseMeta }
+        if (!forceRefresh) {
+            cachedMetaByRequestKey[requestKey]?.let { return it.baseMeta }
+        }
         ServerItemRef.parse(id)?.let { ref ->
             return runCatching { ServerCatalog.details(ref).meta }
                 .onFailure { if (it is CancellationException) throw it }
@@ -221,13 +234,24 @@ object MetaDetailsRepository {
 
         for (manifest in manifests) {
             val result = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
-                tryFetchMeta(manifest, type, metaLookupId, includeMdbList = false)
+                tryFetchMeta(
+                    manifest = manifest,
+                    type = type,
+                    id = metaLookupId,
+                    includeMdbList = false,
+                    forceRefresh = forceRefresh,
+                )
             }
             if (result != null) {
+                val requestedMeta = SpotlightCatalog.applyMeta(
+                    meta = result,
+                    type = type,
+                    requestedId = id,
+                )
                 if (cacheResult) {
-                    cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
+                    cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = requestedMeta)
                 }
-                return result
+                return requestedMeta
             }
         }
 
@@ -236,6 +260,30 @@ object MetaDetailsRepository {
                 cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
             }
         }
+    }
+
+    /**
+     * Drops cached metadata and provider HTTP cache for one title, then fetches it again.
+     * Used by the explicit "Refetch" action so an old wrong match never survives an update.
+     */
+    suspend fun refetch(type: String, id: String): MetaDetails? {
+        val requestKey = "$type:$id"
+        cachedMetaByRequestKey.remove(requestKey)
+        TmdbMetadataService.invalidateCaches()
+        val fresh = fetch(type = type, id = id, cacheResult = true, forceRefresh = true)
+        val current = _uiState.value.meta
+        val matchesCurrent = current != null &&
+            current.type == type &&
+            (
+                current.id == id ||
+                    current.imdbId == id ||
+                    current.id == fresh?.id ||
+                    (current.imdbId != null && current.imdbId == fresh?.imdbId)
+                )
+        if (fresh != null && matchesCurrent) {
+            _uiState.value = MetaDetailsUiState(meta = fresh.withUnreleasedFilter())
+        }
+        return fresh
     }
 
     private fun loadServerMeta(requestKey: String, ref: ServerItemRef) {
@@ -279,6 +327,7 @@ object MetaDetailsRepository {
         type: String,
         id: String,
         includeMdbList: Boolean,
+        forceRefresh: Boolean = false,
     ): MetaDetails? {
         val url = buildAddonResourceUrl(
             manifestUrl = manifest.transportUrl,
@@ -290,7 +339,7 @@ object MetaDetailsRepository {
         return try {
             TmdbSettingsRepository.ensureLoaded()
             log.d { "Fetching meta from: $url" }
-            val payload = fetchAddonResponseText(url)
+            val payload = fetchAddonResponseText(url, forceRefresh = forceRefresh)
             log.d { "Raw payload length=${payload.length}, first 500 chars: ${payload.take(500)}" }
             val result = MetaDetailsParser.parse(payload)
             val tmdbEnriched = withTimeoutOrNull(TMDB_ENRICH_TIMEOUT_MS) {
@@ -374,7 +423,9 @@ object MetaDetailsRepository {
                 type = type,
                 id = id,
                 settings = TmdbSettingsRepository.snapshot(),
-            )
+            )?.let { meta ->
+                SpotlightCatalog.applyMeta(meta = meta, type = type, requestedId = id)
+            }
         }
 
     private suspend fun publishLoadedMeta(

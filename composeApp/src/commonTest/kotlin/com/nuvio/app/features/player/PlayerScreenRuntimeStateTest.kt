@@ -15,6 +15,40 @@ import kotlin.test.assertTrue
 class PlayerScreenRuntimeStateTest {
 
     @Test
+    fun naturalEndErrorBecomesCompletionInsteadOfPlaybackFailure() {
+        val nearEnd = PlayerPlaybackSnapshot(
+            isLoading = false,
+            isPlaying = false,
+            positionMs = 7_198_500L,
+            durationMs = 7_200_000L,
+        )
+
+        assertTrue(isLikelyNaturalPlaybackCompletion(nearEnd, playbackStarted = true))
+        val completed = nearEnd.asNaturalPlaybackEnd()
+        assertTrue(completed.isEnded)
+        assertFalse(completed.isLoading)
+        assertFalse(completed.isPlaying)
+        assertEquals(completed.durationMs, completed.positionMs)
+    }
+
+    @Test
+    fun startupOrMidMovieErrorsRemainRealPlaybackErrors() {
+        val midMovie = PlayerPlaybackSnapshot(
+            isLoading = false,
+            positionMs = 3_600_000L,
+            durationMs = 7_200_000L,
+        )
+
+        assertFalse(isLikelyNaturalPlaybackCompletion(midMovie, playbackStarted = true))
+        assertFalse(
+            isLikelyNaturalPlaybackCompletion(
+                midMovie.copy(positionMs = 7_199_000L),
+                playbackStarted = false,
+            ),
+        )
+    }
+
+    @Test
     fun controlsStartHidden() {
         assertFalse(PlayerScreenRuntime(testPlayerScreenArgs()).controlsVisible)
     }

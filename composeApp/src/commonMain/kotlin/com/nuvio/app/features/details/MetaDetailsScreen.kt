@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import com.nuvio.app.features.downloads.DownloadEnqueueResult
 import com.nuvio.app.features.downloads.DownloadOptionsDialog
 import com.nuvio.app.features.downloads.DownloadSelection
 import com.nuvio.app.features.downloads.DownloadSourceResolver
@@ -201,6 +202,7 @@ fun MetaDetailsScreen(
     onOpenMeta: ((MetaPreview) -> Unit)? = null,
     onCastClick: ((MetaPerson, String?) -> Unit)? = null,
     onCompanyClick: ((MetaCompany, String) -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
@@ -1194,6 +1196,9 @@ fun MetaDetailsScreen(
                                     includeSubtitles = selection.includeSubtitles,
                                 )
                                 NuvioToastController.show(result.toastMessage())
+                                if (result == DownloadEnqueueResult.Started || result == DownloadEnqueueResult.Replaced) {
+                                    onOpenDownloads?.invoke()
+                                }
                             }
                         },
                     )

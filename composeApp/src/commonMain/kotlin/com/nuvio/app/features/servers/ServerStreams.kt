@@ -96,7 +96,9 @@ internal object ServerStreams {
                     serverTarget = candidate.target,
                 )
             }
-            .filterNot(StreamContentFilter::isBlockedPrint)
+            // The requested title is not available at this provider layer. Edition filtering is
+            // applied centrally by StreamsRepository once metadata context is known.
+            .filterNot(StreamContentFilter::isCamPrint)
     }
 
     private fun groupId(connectionId: String) = "$GROUP_PREFIX$connectionId"

@@ -56,6 +56,17 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             descriptorSignature = "zylo_bollywood",
         ),
         HomeCatalogDefinition(
+            key = "zylo:movie:hollywood",
+            defaultTitle = "Hollywood Movies",
+            catalogName = "Hollywood Movies",
+            addonName = "ZYLO Regional",
+            manifestUrl = "",
+            type = "movie",
+            catalogId = "zylo_hollywood",
+            supportsPagination = true,
+            descriptorSignature = "zylo_hollywood",
+        ),
+        HomeCatalogDefinition(
             key = "zylo:movie:south",
             defaultTitle = "South Indian Cinema",
             catalogName = "South Indian Cinema",
@@ -88,17 +99,18 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             supportsPagination = true,
             descriptorSignature = "zylo_cartoons",
         ),
-        HomeCatalogDefinition(
-            key = "zylo:movie:hollywood",
-            defaultTitle = "Hollywood Movies",
-            catalogName = "Hollywood Movies",
-            addonName = "ZYLO Regional",
-            manifestUrl = "",
-            type = "movie",
-            catalogId = "zylo_hollywood",
-            supportsPagination = true,
-            descriptorSignature = "zylo_hollywood",
-        ),
+    )
+
+    val spotlightDefinition = HomeCatalogDefinition(
+        key = SpotlightCatalog.CATALOG_KEY,
+        defaultTitle = "New & Returning",
+        catalogName = "New & Returning",
+        addonName = "ZYLO",
+        manifestUrl = "",
+        type = "movie",
+        catalogId = SpotlightCatalog.CATALOG_ID,
+        supportsPagination = false,
+        descriptorSignature = "${SpotlightCatalog.CATALOG_ID}:1",
     )
 
     val addonDefinitions = addons.enabledAddons().mapNotNull { addon ->
@@ -128,14 +140,35 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             }
     }
 
-    // Keep the first three source catalogs intact, then place ZYLO's regional shelves in the
-    // requested fourth position onward. Fresh profiles therefore see Bollywood, Hollywood and
-    // South cinema together without displacing their primary addon rows.
-    val regionalInsertIndex = minOf(3, addonDefinitions.size)
-    val orderedDefinitions = addonDefinitions.toMutableList().apply {
-        addAll(regionalInsertIndex, regionalDefinitions)
+    // Trending rows must lead the home screen, then the ZYLO Indian shelves sit right after
+    // the leading addon rows so Hindi/Punjabi/South content is visible without scrolling far.
+    return orderHomeCatalogDefinitions(
+        addonDefinitions = addonDefinitions,
+        spotlightDefinition = spotlightDefinition,
+        regionalDefinitions = regionalDefinitions,
+    ) + ServerCatalog.homeDefinitions()
+}
+
+internal fun orderHomeCatalogDefinitions(
+    addonDefinitions: List<HomeCatalogDefinition>,
+    spotlightDefinition: HomeCatalogDefinition,
+    regionalDefinitions: List<HomeCatalogDefinition>,
+): List<HomeCatalogDefinition> {
+    val (trendingDefinitions, remainingAddonDefinitions) = addonDefinitions.partition { definition ->
+        definition.isTrendingDefinition()
     }
-    return orderedDefinitions.distinctBy(HomeCatalogDefinition::key) + ServerCatalog.homeDefinitions()
+    val orderedAddonDefinitions = trendingDefinitions.sortedBy { definition ->
+        if (definition.type == "movie") 0 else 1
+    } + spotlightDefinition + remainingAddonDefinitions
+    val regionalInsertIndex = minOf(3, orderedAddonDefinitions.size)
+    return orderedAddonDefinitions.toMutableList()
+        .apply { addAll(regionalInsertIndex, regionalDefinitions) }
+        .distinctBy(HomeCatalogDefinition::key)
+}
+
+private fun HomeCatalogDefinition.isTrendingDefinition(): Boolean {
+    val normalized = "$catalogName $defaultTitle".lowercase()
+    return "trending" in normalized && (type == "movie" || type == "series")
 }
 
 private fun buildHomeCatalogDescriptorSignature(

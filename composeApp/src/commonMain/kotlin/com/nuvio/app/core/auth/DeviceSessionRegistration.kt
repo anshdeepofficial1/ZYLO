@@ -16,6 +16,7 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
+// Keep the backend protocol identity stable; UI branding is handled separately.
 private const val CLIENT_NAME = "Nuvio Mobile"
 private val REGISTRATION_INTERVAL = 15.minutes
 

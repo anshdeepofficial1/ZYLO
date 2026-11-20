@@ -28,10 +28,23 @@ class StreamAutoPlayLoadingPolicyTest {
     fun `manual selection and invalid regex do not start autoplay loading`() {
         val initial = StreamsUiState()
         assertFalse(initial.shouldShowAutoPlayLoading("new", autoPlaySettings, true))
-        assertFalse(initial.shouldShowAutoPlayLoading("new", PlayerSettingsUiState(), false))
+        assertFalse(
+            initial.shouldShowAutoPlayLoading(
+                "new",
+                PlayerSettingsUiState(
+                    streamReuseLastLinkEnabled = false,
+                    streamAutoPlayMode = StreamAutoPlayMode.MANUAL,
+                ),
+                false,
+            ),
+        )
         assertFalse(initial.shouldShowAutoPlayLoading(
             "new",
-            PlayerSettingsUiState(streamAutoPlayMode = StreamAutoPlayMode.REGEX_MATCH, streamAutoPlayRegex = "["),
+            PlayerSettingsUiState(
+                streamReuseLastLinkEnabled = false,
+                streamAutoPlayMode = StreamAutoPlayMode.REGEX_MATCH,
+                streamAutoPlayRegex = "[",
+            ),
             false,
         ))
     }
@@ -92,7 +105,11 @@ class StreamAutoPlayLoadingPolicyTest {
 
     @Test
     fun `manual binge group reuse waits for playback before rotating`() {
-        val settings = PlayerSettingsUiState(streamAutoPlayReuseBingeGroup = true)
+        val settings = PlayerSettingsUiState(
+            streamReuseLastLinkEnabled = false,
+            streamAutoPlayMode = StreamAutoPlayMode.MANUAL,
+            streamAutoPlayReuseBingeGroup = true,
+        )
         val state = StreamsUiState(
             requestToken = "new",
             autoPlayDecided = true,

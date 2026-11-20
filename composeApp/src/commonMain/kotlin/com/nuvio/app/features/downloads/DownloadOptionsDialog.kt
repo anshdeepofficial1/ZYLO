@@ -38,6 +38,7 @@ import nuvio.composeapp.generated.resources.downloads_dialog_selected
 import nuvio.composeapp.generated.resources.downloads_dialog_selected_summary
 import nuvio.composeapp.generated.resources.downloads_dialog_server
 import nuvio.composeapp.generated.resources.downloads_dialog_size
+import nuvio.composeapp.generated.resources.downloads_dialog_speed
 import nuvio.composeapp.generated.resources.downloads_dialog_subtitles
 import nuvio.composeapp.generated.resources.downloads_dialog_try_again
 import org.jetbrains.compose.resources.stringResource
@@ -500,17 +501,26 @@ private fun DownloadSourceRow(
                     Spacer(modifier = Modifier.width(8.dp))
                     DownloadTag(text = languageLabel(languageKey(option)))
                 }
-                Text(
-                    text = "${stringResource(Res.string.downloads_dialog_size)}: ${option.sizeLabel}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DownloadTag(text = "${option.speedLabel} response")
-                    DownloadTag(
-                        text = option.resumeLabel,
-                        highlighted = option.resumable == true,
+                option.sizeLabel?.let { sizeLabel ->
+                    Text(
+                        text = "${stringResource(Res.string.downloads_dialog_size)}: $sizeLabel",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    option.speedLabel?.let { speed ->
+                        DownloadTag(
+                            text = "${stringResource(Res.string.downloads_dialog_speed)}: $speed",
+                            emphasized = speed == "Fast",
+                        )
+                    }
+                    option.resumeLabel?.let { resume ->
+                        DownloadTag(
+                            text = resume,
+                            highlighted = option.resumable == true,
+                        )
+                    }
                 }
             }
             if (selected) {

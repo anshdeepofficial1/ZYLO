@@ -137,11 +137,10 @@ internal fun PluginRuntimeResult.toStreamItem(
 
 internal fun List<StreamItem>.sortedForGroupedDisplay(): List<StreamItem> =
     sortedWith(
-        compareBy<StreamItem>(
-            { it.sourceName.orEmpty().lowercase() },
-            { it.streamLabel.lowercase() },
-            { it.streamSubtitle.orEmpty().lowercase() },
-        ),
+        compareByDescending<StreamItem> { stream -> StreamContentFilter.detectQuality(stream)?.rank ?: -1 }
+            .thenBy { it.sourceName.orEmpty().lowercase() }
+            .thenBy { it.streamLabel.lowercase() }
+            .thenBy { it.streamSubtitle.orEmpty().lowercase() },
     )
 
 private fun String.fallbackRepositoryLabel(): String {

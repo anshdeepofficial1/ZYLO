@@ -50,6 +50,11 @@ object StreamAutoPlaySelector {
         bingeGroupOnly: Boolean = false,
         debridEnabled: Boolean = true,
         activeResolverProviderId: String? = null,
+        preferredAudioLanguage: String? = null,
+        preferredQuality: StreamQualityPreference = StreamQualityPreference.HIGHEST_AVAILABLE,
+        expectedTitle: String? = null,
+        expectedYear: Int? = null,
+        expectedImdbId: String? = null,
     ): StreamItem? =
         evaluateAutoPlayStream(
             streams = streams,
@@ -64,6 +69,11 @@ object StreamAutoPlaySelector {
             bingeGroupOnly = bingeGroupOnly,
             debridEnabled = debridEnabled,
             activeResolverProviderId = activeResolverProviderId,
+            preferredAudioLanguage = preferredAudioLanguage,
+            preferredQuality = preferredQuality,
+            expectedTitle = expectedTitle,
+            expectedYear = expectedYear,
+            expectedImdbId = expectedImdbId,
         ).stream
 
     fun evaluateAutoPlayStream(
@@ -79,6 +89,11 @@ object StreamAutoPlaySelector {
         bingeGroupOnly: Boolean = false,
         debridEnabled: Boolean = true,
         activeResolverProviderId: String? = null,
+        preferredAudioLanguage: String? = null,
+        preferredQuality: StreamQualityPreference = StreamQualityPreference.HIGHEST_AVAILABLE,
+        expectedTitle: String? = null,
+        expectedYear: Int? = null,
+        expectedImdbId: String? = null,
     ): StreamAutoPlayEvaluation {
         if (streams.isEmpty()) return StreamAutoPlayEvaluation()
 
@@ -96,6 +111,14 @@ object StreamAutoPlaySelector {
             } else {
                 selectedPlugins.isEmpty() || stream.addonName in selectedPlugins
             }
+        }.filter { stream ->
+            // Never auto-play a same-name release from another title/year/id.
+            StreamContentFilter.isIdentityCompatible(
+                stream = stream,
+                expectedTitle = expectedTitle,
+                expectedYear = expectedYear,
+                expectedImdbId = expectedImdbId,
+            )
         }
         if (candidateStreams.isEmpty()) return StreamAutoPlayEvaluation()
         if (mode == StreamAutoPlayMode.MANUAL && !bingeGroupOnly) {
@@ -187,8 +210,22 @@ object StreamAutoPlaySelector {
                 .filterNot { it == preferredStream }
                 .forEach(::add)
         }
-        // Direct URLs start instantly; among torrents, the best-seeded copy buffers the least.
-        val orderedReadyStreams = readyStreams.sortedBy { it.autoPlaySelectionRank() }
+        // Highest print quality wins first (4K > 2K > 1080p > 720p > 480p), then the preferred
+        // audio language, then direct URLs over torrents so playback starts quickly.
+        val qualityComparator =
+            compareBy<StreamItem> { stream -> preferredQuality.selectionRank(stream) }
+                .thenBy { stream -> StreamContentFilter.audioLanguageRank(stream, preferredAudioLanguage) }
+                .thenBy { stream -> stream.autoPlaySelectionRank() }
+        // A confirmed binge group is the last source that actually worked for this title. Keep it
+        // ahead of generic quality ranking; if it disappears/fails, the remaining candidates still
+        // fall back in 4K -> 1080p -> 720p order.
+        val orderedReadyStreams = buildList {
+            preferredStream?.let(::add)
+            readyStreams
+                .filterNot { stream -> stream == preferredStream }
+                .sortedWith(qualityComparator)
+                .forEach(::add)
+        }
         val selected = orderedReadyStreams.firstOrNull()
         if (selected != null) {
             return StreamAutoPlayEvaluation(
@@ -263,6 +300,24 @@ object StreamAutoPlaySelector {
     private fun String?.matchesResolver(activeResolverProviderId: String?): Boolean {
         val active = activeResolverProviderId?.trim().orEmpty()
         return active.isBlank() || this == null || equals(active, ignoreCase = true)
+    }
+}
+
+enum class StreamQualityPreference(val targetRank: Int?) {
+    HIGHEST_AVAILABLE(targetRank = null),
+    UHD_4K(targetRank = StreamPrintQuality.UHD.rank),
+    FHD_1080P(targetRank = StreamPrintQuality.FHD.rank),
+    HD_720P(targetRank = StreamPrintQuality.HD.rank),
+    ;
+
+    internal fun selectionRank(stream: StreamItem): Int {
+        val actual = StreamContentFilter.detectQuality(stream)?.rank ?: return 100
+        val target = targetRank ?: return -actual
+        return when {
+            actual == target -> 0
+            actual < target -> 1 + (target - actual)
+            else -> 20 + (actual - target)
+        }
     }
 }
 

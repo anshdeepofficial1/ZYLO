@@ -64,4 +64,44 @@ class HomeCatalogDefinitionTest {
         assertNotEquals(pendingSignature, loadedSignature)
         assertNotEquals(failedSignature, loadedSignature)
     }
+
+    @Test
+    fun `home starts with trending then spotlight and regional cinema`() {
+        fun catalog(id: String, name: String, type: String = "movie") = definition.copy(
+            key = "test:$type:$id",
+            defaultTitle = name,
+            catalogName = name,
+            type = type,
+            catalogId = id,
+        )
+        val spotlight = catalog(SpotlightCatalog.CATALOG_ID, "New & Returning")
+        val regional = listOf(
+            catalog("zylo_bollywood", "Bollywood & Hindi Hits"),
+            catalog("zylo_hollywood", "Hollywood Movies"),
+            catalog("zylo_south", "South Indian Cinema"),
+            catalog("zylo_punjabi", "Punjabi Cinema"),
+        )
+        val ids = orderHomeCatalogDefinitions(
+            addonDefinitions = listOf(
+                catalog("trending-series", "Trending Series", type = "series"),
+                catalog("popular", "Popular Movies"),
+                catalog("trending-movies", "Trending Movies"),
+            ),
+            spotlightDefinition = spotlight,
+            regionalDefinitions = regional,
+        ).map(HomeCatalogDefinition::catalogId)
+
+        assertEquals(
+            listOf(
+                "trending-movies",
+                "trending-series",
+                SpotlightCatalog.CATALOG_ID,
+                "zylo_bollywood",
+                "zylo_hollywood",
+                "zylo_south",
+                "zylo_punjabi",
+            ),
+            ids.take(7),
+        )
+    }
 }

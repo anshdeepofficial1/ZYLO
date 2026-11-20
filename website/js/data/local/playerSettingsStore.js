@@ -17,6 +17,7 @@ import { normalizeHdrPreference } from "../../core/streams/streamHdrPreference.j
 import { streamDisplayMode } from "../../core/streams/streamLabelPolicy.js";
 
 const KEY = "playerSettings";
+const DIRECT_PLAY_MIGRATION_VERSION = 1;
 
 const DEFAULTS = {
   autoplayNextEpisode: false,
@@ -78,9 +79,8 @@ const DEFAULTS = {
   // the movi engine needs WebCodecs and a CORS-readable source, so a profile
   // that never asked for it must keep the built-in player.
   playerEngine: "native",
-  // Apple browser users without a stored preference receive the verified
-  // Lenna path; platform-specific consumers keep Android on its own options.
-  browserExternalPlayer: "lenna",
+  // Web Play stays inside ZYLO by default. External apps remain an explicit setting.
+  browserExternalPlayer: "disabled",
   externalPlayerProgress: "automatic",
   // A downloaded file can be played in Nuvio or handed to another app, and the
   // handoff costs a second copy of the file, so the choice is never assumed.
@@ -281,6 +281,17 @@ function normalizeSelectableSubtitleLanguageCode(language, fallback = "off") {
 
 export function normalizePlayerSettings(settings = {}) {
   const { subtitleDelayMs: _ignoredSubtitleDelayMs, ...persistentSettings } = settings || {};
+  const storedDirectPlayMigrationVersion = Math.max(
+    0,
+    Math.trunc(Number(persistentSettings.directPlayMigrationVersion)) || 0
+  );
+  const needsDirectPlayMigration = storedDirectPlayMigrationVersion < DIRECT_PLAY_MIGRATION_VERSION;
+  const storedAutoPlayMode = normalizeStreamAutoPlayMode(
+    persistentSettings.streamAutoPlayMode ?? DEFAULTS.streamAutoPlayMode
+  );
+  const storedBrowserExternalPlayer = normalizeBrowserExternalPlayer(
+    persistentSettings.browserExternalPlayer ?? DEFAULTS.browserExternalPlayer
+  );
   const subtitleStyle = {
     ...DEFAULTS.subtitleStyle,
     ...(persistentSettings.subtitleStyle || {})
@@ -360,9 +371,11 @@ export function normalizePlayerSettings(settings = {}) {
     addonSubtitleStartupModeAutoPreferred: Boolean(
       persistentSettings.addonSubtitleStartupModeAutoPreferred
     ),
-    streamAutoPlayMode: normalizeStreamAutoPlayMode(
-      persistentSettings.streamAutoPlayMode ?? DEFAULTS.streamAutoPlayMode
-    ),
+    directPlayMigrationVersion: DIRECT_PLAY_MIGRATION_VERSION,
+    streamAutoPlayMode:
+      needsDirectPlayMigration && storedAutoPlayMode === "MANUAL"
+        ? "FIRST_STREAM"
+        : storedAutoPlayMode,
     streamAutoPlayHdrPreference: normalizeHdrPreference(
       persistentSettings.streamAutoPlayHdrPreference
     ),
@@ -392,9 +405,10 @@ export function normalizePlayerSettings(settings = {}) {
     streamAutoPlayTimeoutSeconds: normalizeStreamAutoPlayTimeout(
       persistentSettings.streamAutoPlayTimeoutSeconds
     ),
-    browserExternalPlayer: normalizeBrowserExternalPlayer(
-      persistentSettings.browserExternalPlayer ?? DEFAULTS.browserExternalPlayer
-    ),
+    browserExternalPlayer:
+      needsDirectPlayMigration && storedBrowserExternalPlayer === "lenna"
+        ? "disabled"
+        : storedBrowserExternalPlayer,
     externalPlayerProgress: normalizeExternalPlayerProgress(
       persistentSettings.externalPlayerProgress ?? DEFAULTS.externalPlayerProgress
     ),

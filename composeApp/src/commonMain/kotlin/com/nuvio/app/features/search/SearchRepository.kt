@@ -23,6 +23,7 @@ import com.nuvio.app.features.catalog.supportsPagination
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.home.SpotlightCatalog
 import com.nuvio.app.features.home.filterReleasedItems
 import com.nuvio.app.core.poster.withCustomPosterUrls
 import com.nuvio.app.features.tmdb.TmdbMetadataService
@@ -96,7 +97,8 @@ object SearchRepository {
         val serverSearches = ServerCatalog.searchTargets()
         val canSearchPeople = TmdbSettingsRepository.snapshot().enabled &&
             TmdbSettingsRepository.effectiveApiKey().isNotBlank()
-        if (activeAddons.isEmpty() && serverSearches.isEmpty() && !canSearchPeople) {
+        val hasSpotlightMatch = SpotlightCatalog.hasMatch(normalizedQuery)
+        if (activeAddons.isEmpty() && serverSearches.isEmpty() && !canSearchPeople && !hasSpotlightMatch) {
             activeJob?.cancel()
             lastRequestKey = null
             _uiState.value = SearchUiState(
@@ -115,7 +117,7 @@ object SearchRepository {
             addons = activeAddons,
             query = normalizedQuery,
         )
-        if (requests.isEmpty() && serverSearches.isEmpty() && !canSearchPeople) {
+        if (requests.isEmpty() && serverSearches.isEmpty() && !canSearchPeople && !hasSpotlightMatch) {
             activeJob?.cancel()
             lastRequestKey = null
             _uiState.value = SearchUiState(
@@ -133,6 +135,8 @@ object SearchRepository {
             append(hasPendingAddonManifests)
             append("|people:")
             append(canSearchPeople)
+            append("|spotlight:")
+            append(hasSpotlightMatch)
             append('|')
             append(
                 requests.joinToString(separator = "|") { request ->
@@ -156,6 +160,11 @@ object SearchRepository {
                     }
                 } +
                 listOfNotNull(
+                    if (hasSpotlightMatch) {
+                        suspend { spotlightSearchSection(normalizedQuery) }
+                    } else {
+                        null
+                    },
                     if (canSearchPeople) {
                         suspend { personFilmographySection(normalizedQuery) }
                     } else {
@@ -203,7 +212,7 @@ object SearchRepository {
             try {
                 for (result in resultChannel) {
                     results[result.index] = result
-                    val sections = results.orderedSections()
+                    val sections = results.orderedSections().withTopResults(normalizedQuery)
                     if (sections.isNotEmpty()) {
                         _uiState.value = SearchUiState(
                             isLoading = true,
@@ -217,7 +226,7 @@ object SearchRepository {
             }
 
             val completedResults = results.filterNotNull()
-            val sections = results.orderedSections()
+            val sections = results.orderedSections().withTopResults(normalizedQuery)
             val firstFailure = completedResults.firstNotNullOfOrNull { result -> result.error?.let { it.serverMessage() ?: it.message } }
             val allFailed = completedResults.isNotEmpty() && completedResults.all { it.error != null }
 
@@ -646,6 +655,26 @@ object SearchRepository {
     }
 }
 
+private suspend fun spotlightSearchSection(query: String): HomeCatalogSection {
+    val items = SpotlightCatalog.search(query)
+    require(items.isNotEmpty()) { "No spotlight results" }
+    return HomeCatalogSection(
+        key = "search:${SpotlightCatalog.CATALOG_ID}:${query.lowercase()}",
+        title = getString(Res.string.search_tmdb_results),
+        subtitle = "ZYLO",
+        addonName = "ZYLO",
+        target = CatalogTarget.Addon(
+            manifestUrl = "",
+            contentType = "movie",
+            catalogId = SpotlightCatalog.CATALOG_ID,
+            supportsPagination = false,
+        ),
+        items = items,
+        availableItemCount = items.size,
+        hasMore = false,
+    )
+}
+
 private suspend fun personFilmographySection(query: String): HomeCatalogSection {
     val personId = TmdbService.searchPerson(query)
         ?: error("No matching actor or crew member")
@@ -685,6 +714,58 @@ private data class IndexedSearchResult(
 
 private fun Array<IndexedSearchResult?>.orderedSections(): List<HomeCatalogSection> =
     mapNotNull { result -> result?.section }
+
+/**
+ * Builds one leading "Top results" row so an exact title match is always the first thing shown.
+ * Series win ties over movies because a query like "Suits" is almost always the show, not a
+ * same-name movie buried in a later catalog row.
+ */
+private suspend fun List<HomeCatalogSection>.withTopResults(query: String): List<HomeCatalogSection> {
+    val normalizedQuery = query.trim().lowercase()
+    if (normalizedQuery.isEmpty()) return this
+
+    val matches = flatMap { section -> section.items }
+        .mapNotNull { item ->
+            val name = item.name.trim().lowercase()
+            val matchRank = when {
+                name == normalizedQuery -> 0
+                name.startsWith(normalizedQuery) -> 1
+                else -> return@mapNotNull null
+            }
+            matchRank to item
+        }
+        .sortedWith(
+            compareBy<Pair<Int, MetaPreview>>(
+                { it.first },
+                { if (it.second.type == "series") 0 else 1 },
+                { -(it.second.voteCount ?: 0) },
+                { -(it.second.popularity ?: 0.0) },
+                { it.second.name.lowercase() },
+            ),
+        )
+        .map { (_, item) -> item }
+        .distinctBy { "${it.type}:${it.id}" }
+        .take(12)
+
+    if (matches.isEmpty()) return this
+
+    val topSection = HomeCatalogSection(
+        key = "search:top:$normalizedQuery",
+        title = getString(Res.string.search_top_results),
+        subtitle = "",
+        addonName = "",
+        target = CatalogTarget.Addon(
+            manifestUrl = "",
+            contentType = matches.first().type,
+            catalogId = "",
+            supportsPagination = false,
+        ),
+        items = matches,
+        availableItemCount = matches.size,
+        hasMore = false,
+    )
+    return listOf(topSection) + this
+}
 
 private fun CatalogPage.withUnreleasedFilter(): CatalogPage {
     if (!HomeCatalogSettingsRepository.snapshot().hideUnreleasedContent) return this

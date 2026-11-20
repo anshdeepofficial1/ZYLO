@@ -42,6 +42,18 @@ object TmdbMetadataService {
         }
     }
 
+    /**
+     * Clears cached TMDB enrichment for an explicit user-triggered refetch. Keys are derived from
+     * many id forms (IMDb, TMDB, localized), so clearing is safer than guessing the numeric id.
+     */
+    fun invalidateCaches() {
+        synchronized(enrichmentCacheLock) { enrichmentCache.clear() }
+        episodeCache.clear()
+        moreLikeThisCache.clear()
+        collectionCache.clear()
+        trailerCache.clear()
+    }
+
     private val enrichmentCache = mutableMapOf<String, TmdbEnrichment>()
     private val enrichmentCacheLock = SynchronizedObject()
     private val episodeCache = mutableMapOf<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>()
@@ -747,6 +759,7 @@ object TmdbMetadataService {
             ?.substringAfter(':')
             ?.substringBefore(':')
             ?.toIntOrNull()
+            ?: TmdbService.ensureTmdbId(videoId = id, mediaType = type)?.toIntOrNull()
             ?: return null
         val tmdbType = normalizeMetaType(type)
         val enrichment = fetchEnrichment(
@@ -755,13 +768,70 @@ object TmdbMetadataService {
             language = settings.language,
             settings = settings,
         ) ?: return null
+        val videos = if (tmdbType == "tv") {
+            fetchStandaloneEpisodes(
+                tmdbId = tmdbId,
+                parentId = id,
+                language = settings.language,
+            )
+        } else {
+            emptyList()
+        }
 
         return buildStandaloneMeta(
             type = type,
             id = id,
             tmdbId = tmdbId,
             enrichment = enrichment,
+            videos = videos,
         )
+    }
+
+    /**
+     * Builds a complete episode list when only TMDB metadata is available (no addon meta).
+     * Without this a series fallback had no seasons/episodes to play at all.
+     */
+    private suspend fun fetchStandaloneEpisodes(
+        tmdbId: Int,
+        parentId: String,
+        language: String,
+    ): List<MetaVideo> {
+        val normalizedLanguage = normalizeTmdbLanguage(language)
+        val details = fetch<TmdbDetailsResponse>(
+            endpoint = "tv/$tmdbId",
+            query = mapOf("language" to normalizedLanguage),
+        ) ?: return emptyList()
+        val seasonCount = details.numberOfSeasons?.coerceAtLeast(0) ?: 0
+        if (seasonCount <= 0) return emptyList()
+
+        return coroutineScope {
+            (1..seasonCount).map { season ->
+                async {
+                    val response = fetch<TmdbSeasonDetailsResponse>(
+                        endpoint = "tv/$tmdbId/season/$season",
+                        query = mapOf("language" to normalizedLanguage),
+                    ) ?: return@async emptyList()
+                    val seasonPoster = buildImageUrl(response.posterPath, "w500")
+                    response.episodes.mapNotNull { episode ->
+                        val episodeNumber = episode.episodeNumber ?: return@mapNotNull null
+                        MetaVideo(
+                            id = "$parentId:$season:$episodeNumber",
+                            title = episode.name?.trim()?.takeIf(String::isNotBlank)
+                                ?: "Episode $episodeNumber",
+                            released = episode.airDate?.trim()?.take(10)?.takeIf { it.length == 10 },
+                            thumbnail = buildImageUrl(episode.stillPath, "w500"),
+                            seasonPoster = seasonPoster,
+                            season = season,
+                            episode = episodeNumber,
+                            overview = episode.overview?.trim()?.takeIf(String::isNotBlank),
+                            runtime = episode.runtime,
+                        )
+                    }
+                }
+            }.awaitAll()
+                .flatten()
+                .sortedWith(compareBy<MetaVideo>({ it.season ?: Int.MAX_VALUE }, { it.episode ?: Int.MAX_VALUE }))
+        }
     }
 
     internal fun buildStandaloneMeta(
@@ -769,6 +839,7 @@ object TmdbMetadataService {
         id: String,
         tmdbId: Int,
         enrichment: TmdbEnrichment,
+        videos: List<MetaVideo> = emptyList(),
     ): MetaDetails =
         MetaDetails(
             id = id,
@@ -795,6 +866,8 @@ object TmdbMetadataService {
             networks = enrichment.networks,
             country = enrichment.countries.takeIf { it.isNotEmpty() }?.joinToString(", "),
             language = enrichment.language,
+            videos = videos,
+            defaultVideoId = videos.firstOrNull()?.id,
             moreLikeThis = enrichment.moreLikeThis,
             moreLikeThisSource = MoreLikeThisSource.TMDB.takeIf { enrichment.moreLikeThis.isNotEmpty() },
             collectionName = enrichment.collectionName,
@@ -1836,7 +1909,7 @@ private fun List<TmdbMovieReleaseDateCountry>.selectReleaseDateByType(
     normalizedLanguage: String,
     types: Set<Int>,
 ): String? {
-    val preferredRegions = preferredAgeRatingRegions(normalizedLanguage)
+    val preferredRegions = preferredMovieReleaseRegions(normalizedLanguage)
     val byRegion = associateBy { it.iso31661?.uppercase() }
     preferredRegions.forEach { region ->
         val date = byRegion[region]
@@ -1847,12 +1920,16 @@ private fun List<TmdbMovieReleaseDateCountry>.selectReleaseDateByType(
             .minOrNull()
         if (date != null) return date
     }
-    return asSequence()
-        .flatMap { it.releaseDates.asSequence() }
-        .filter { it.type in types }
-        .mapNotNull { parseTmdbReleaseCalendarDate(it.releaseDate) }
-        .minOrNull()
+    // Never fall back to the earliest date worldwide: a limited release in one market would
+    // otherwise surface as the "real" date (e.g. a Dec 16 regional date for a Dec 18 US release).
+    return null
 }
+
+/** India-first release availability, with the user's locale regions kept as fallbacks. */
+internal fun preferredMovieReleaseRegions(normalizedLanguage: String): List<String> = buildList {
+    add("IN")
+    addAll(preferredAgeRatingRegions(normalizedLanguage))
+}.distinct()
 
 /**
  * TMDB sends release dates as midnight-UTC timestamps that represent a calendar date, so the

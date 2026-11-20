@@ -107,17 +107,27 @@ fun DetailMetaInfo(
             key2 = meta.id,
             key3 = meta.releaseDate,
         ) {
-            if (!meta.type.equals("movie", ignoreCase = true)) return@produceState
+            if (!meta.type.equals("movie", ignoreCase = true) &&
+                !meta.type.equals("series", ignoreCase = true) &&
+                !meta.type.equals("tv", ignoreCase = true)
+            ) {
+                return@produceState
+            }
             val releaseBlocked = meta.movieReleaseStatus()?.isBlocked ?: meta.isUnreleased()
             if (releaseBlocked) return@produceState
             // Let the screen settle before spending a provider request on badge discovery.
             delay(1_200L)
+            val isSeries = meta.type.equals("series", ignoreCase = true) ||
+                meta.type.equals("tv", ignoreCase = true)
             value = runCatching {
                 StreamQualityRepository.availableQualities(
                     type = meta.type,
                     videoId = meta.imdbId?.trim()?.takeIf { it.startsWith("tt", ignoreCase = true) }
                         ?: meta.id,
                     parentMetaId = meta.id,
+                    season = if (isSeries) 1 else null,
+                    episode = if (isSeries) 1 else null,
+                    expectedTitle = meta.name,
                 )
             }.getOrDefault(emptyList())
         }

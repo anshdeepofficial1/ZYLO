@@ -21,10 +21,12 @@ internal object StreamQualityRepository {
         type: String,
         videoId: String,
         parentMetaId: String? = null,
+        season: Int? = null,
+        episode: Int? = null,
+        expectedTitle: String? = null,
     ): List<StreamPrintQuality> {
-        if (!type.equals("movie", ignoreCase = true)) return emptyList()
-
-        val key = "${type.lowercase()}|${parentMetaId ?: videoId}|$videoId"
+        val isSeries = type.equals("series", ignoreCase = true) || type.equals("tv", ignoreCase = true)
+        val key = "${type.lowercase()}|${parentMetaId ?: videoId}|$videoId|$season|$episode"
         val now = epochMs()
         mutex.withLock { cache[key] }
             ?.takeIf { entry -> now - entry.cachedAtMs < entry.ttlMs }
@@ -34,8 +36,10 @@ internal object StreamQualityRepository {
             type = type,
             videoId = videoId,
             parentMetaId = parentMetaId,
+            season = if (isSeries) season ?: 1 else season,
+            episode = if (isSeries) episode ?: 1 else episode,
         )
-        val qualities = StreamContentFilter.availableQualities(group.streams)
+        val qualities = StreamContentFilter.availableQualities(group.streams, expectedTitle)
         mutex.withLock {
             cache[key] = CacheEntry(
                 qualities = qualities,
@@ -44,6 +48,10 @@ internal object StreamQualityRepository {
             )
         }
         return qualities
+    }
+
+    fun invalidateAll() {
+        cache.clear()
     }
 
     private data class CacheEntry(

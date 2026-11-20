@@ -1,6 +1,7 @@
 package com.nuvio.app.features.servers
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.core.text.sanitizeBrandLabel
 import com.nuvio.app.features.profiles.ProfileRepository
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
@@ -92,7 +93,7 @@ object ServerRepository {
     fun provider(connection: ServerConnection): ServerProvider? = ServerProviders.forId(connection.providerId)
 
     fun sourceLabel(connection: ServerConnection): String =
-        "${provider(connection)?.displayName ?: connection.providerId} · ${connection.name}"
+        sanitizeBrandLabel("${provider(connection)?.displayName ?: connection.providerId} · ${connection.name}")
 
     fun session(connectionId: String): ServerSession? {
         val connection = connection(connectionId)?.takeIf { it.enabled } ?: return null

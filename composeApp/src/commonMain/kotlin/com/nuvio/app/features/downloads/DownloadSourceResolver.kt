@@ -1,6 +1,7 @@
 package com.nuvio.app.features.downloads
 
 import com.nuvio.app.features.addons.httpRequestRaw
+import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.streams.StreamContentFilter
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamsRepository
@@ -26,23 +27,23 @@ data class DownloadSourceOption(
     val latencyMs: Long?,
     val resumable: Boolean?,
 ) {
-    val sizeLabel: String
-        get() = sizeBytes?.let(::formatDownloadSize) ?: "Size unknown"
+    val sizeLabel: String?
+        get() = sizeBytes?.takeIf { it > 0L }?.let(::formatDownloadSize)
 
-    /** Response speed hint from the probe, not a fabricated benchmark. */
-    val speedLabel: String
+    /** Response speed hint from the probe, not a fabricated benchmark. Null means hide it. */
+    val speedLabel: String?
         get() = when {
-            latencyMs == null -> "Unknown"
+            latencyMs == null -> null
             latencyMs <= 350L -> "Fast"
             latencyMs <= 900L -> "Good"
             else -> "Slow"
         }
 
-    val resumeLabel: String
+    val resumeLabel: String?
         get() = when (resumable) {
             true -> "Resume supported"
             false -> "No resume"
-            null -> "Not verified"
+            null -> null
         }
 
     internal val qualityRank: Int
@@ -77,6 +78,21 @@ internal object DownloadSourceResolver {
             season = season,
             episode = episode,
         )
+        val expectedMeta = MetaDetailsRepository.peek(
+            type = type,
+            id = parentMetaId ?: videoId.substringBefore(":"),
+        )
+        val expectedTitle = expectedMeta?.name
+        val expectedYear = expectedMeta?.releaseDate
+            ?.trim()
+            ?.take(4)
+            ?.toIntOrNull()
+            ?: Regex("""(?<!\d)((?:19|20)\d{2})(?!\d)""")
+                .find(expectedMeta?.releaseInfo.orEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+        val expectedImdbId = expectedMeta?.imdbId
         // The details screen already starts stream discovery for playback. Reuse whatever real
         // addon/plugin sources are loaded for this exact content so downloads match playback.
         val loadedStreams = runCatching {
@@ -96,7 +112,14 @@ internal object DownloadSourceResolver {
         }.getOrDefault(emptyList())
 
         val candidates = (group.streams + loadedStreams)
-            .filterNot(StreamContentFilter::isBlockedPrint)
+            .filter { stream ->
+                StreamContentFilter.isIdentityCompatible(
+                    stream = stream,
+                    expectedTitle = expectedTitle,
+                    expectedYear = expectedYear,
+                    expectedImdbId = expectedImdbId,
+                )
+            }
             .filter { stream ->
                 stream.playableDirectUrl?.isSupportedDownloadUrl() == true
             }
@@ -207,13 +230,22 @@ internal object DownloadSourceResolver {
 }
 
 internal fun formatDownloadSize(bytes: Long): String {
-    val megabytes = bytes.toDouble() / (1024.0 * 1024.0)
+    if (bytes <= 0L) return "0 B"
+    val kib = 1024.0
+    val mib = kib * 1024.0
+    val gib = mib * 1024.0
+    val value = bytes.toDouble()
     return when {
-        megabytes >= 1024.0 -> {
-            val gigabytes = megabytes / 1024.0
-            "${(gigabytes * 10).roundToInt() / 10.0} GB"
-        }
-        megabytes >= 1.0 -> "${megabytes.roundToInt()} MB"
-        else -> "${(bytes / 1024.0).roundToInt().coerceAtLeast(1)} KB"
+        value >= gib -> "${formatOneDecimal(value / gib)} GB"
+        value >= mib -> "${formatOneDecimal(value / mib)} MB"
+        value >= kib -> "${formatOneDecimal(value / kib)} KB"
+        else -> "$bytes B"
     }
+}
+
+private fun formatOneDecimal(value: Double): String {
+    val tenths = (value * 10.0).roundToInt()
+    val whole = tenths / 10
+    val tenth = tenths % 10
+    return if (tenth == 0) whole.toString() else "$whole.$tenth"
 }

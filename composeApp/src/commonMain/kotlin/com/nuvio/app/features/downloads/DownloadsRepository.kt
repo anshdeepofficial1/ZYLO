@@ -23,8 +23,10 @@ object DownloadsRepository {
     val hasUnseenCompleted: StateFlow<Boolean> = _hasUnseenCompleted.asStateFlow()
 
     private val activeHandles = mutableMapOf<String, DownloadsTaskHandle>()
+    private val lastProgressPersistAtMs = mutableMapOf<String, Long>()
     private var hasLoaded = false
     private var nextDownloadOrdinal = 0L
+    private const val PROGRESS_PERSIST_INTERVAL_MS = 1_000L
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -322,7 +324,14 @@ object DownloadsRepository {
         val handle = DownloadsPlatformDownloader.start(
             request = request,
             onProgress = { downloadedBytes, totalBytes ->
-                mutateItem(item.id) { current ->
+                val now = DownloadsClock.nowEpochMs()
+                val shouldPersist = now - (lastProgressPersistAtMs[item.id] ?: 0L) >= PROGRESS_PERSIST_INTERVAL_MS
+                if (shouldPersist) lastProgressPersistAtMs[item.id] = now
+                mutateItem(
+                    downloadId = item.id,
+                    persist = shouldPersist,
+                    notify = shouldPersist,
+                ) { current ->
                     if (current.status != DownloadStatus.Downloading) {
                         current
                     } else {
@@ -337,6 +346,7 @@ object DownloadsRepository {
             },
             onSuccess = { localFileUri, totalBytes ->
                 activeHandles.remove(item.id)
+                lastProgressPersistAtMs.remove(item.id)
                 mutateItem(item.id) { current ->
                     if (current.status != DownloadStatus.Downloading) return@mutateItem current
                     current.copy(
@@ -355,6 +365,7 @@ object DownloadsRepository {
             },
             onFailure = { message ->
                 activeHandles.remove(item.id)
+                lastProgressPersistAtMs.remove(item.id)
                 mutateItem(item.id) { current ->
                     if (current.status != DownloadStatus.Downloading) {
                         current
@@ -369,6 +380,7 @@ object DownloadsRepository {
             },
             onPaused = {
                 activeHandles.remove(item.id)
+                lastProgressPersistAtMs.remove(item.id)
                 mutateItem(item.id) { current ->
                     if (current.status != DownloadStatus.Downloading) return@mutateItem current
                     current.copy(status = DownloadStatus.Paused, errorMessage = null)
@@ -379,7 +391,12 @@ object DownloadsRepository {
         activeHandles[item.id] = handle
     }
 
-    private fun mutateItem(downloadId: String, transform: (DownloadItem) -> DownloadItem) {
+    private fun mutateItem(
+        downloadId: String,
+        persist: Boolean = true,
+        notify: Boolean = true,
+        transform: (DownloadItem) -> DownloadItem,
+    ) {
         var changed = false
         val updated = _uiState.value.items.map { item ->
             if (item.id == downloadId) {
@@ -391,8 +408,8 @@ object DownloadsRepository {
         }
 
         if (changed) {
-            publish(updated)
-            persist()
+            publish(updated, notify = notify)
+            if (persist) persist()
         }
     }
 
@@ -403,7 +420,7 @@ object DownloadsRepository {
         publish(updated)
     }
 
-    private fun publish(items: List<DownloadItem>) {
+    private fun publish(items: List<DownloadItem>, notify: Boolean = true) {
         val previousStatuses = _uiState.value.items.associate { it.id to it.status }
         if (items.any { it.status == DownloadStatus.Completed && previousStatuses[it.id].let { status -> status != null && status != DownloadStatus.Completed } }) {
             _hasUnseenCompleted.value = true
@@ -411,7 +428,7 @@ object DownloadsRepository {
         _uiState.value = DownloadsUiState(
             items = items,
         )
-        notifyLiveStatusPlatform()
+        if (notify) notifyLiveStatusPlatform()
     }
 
     private fun notifyLiveStatusPlatform() {

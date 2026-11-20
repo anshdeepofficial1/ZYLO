@@ -3,6 +3,7 @@ package com.nuvio.app.features.search
 import com.nuvio.app.features.addons.AddonManifest
 import com.nuvio.app.features.addons.AddonResource
 import com.nuvio.app.features.addons.ManagedAddon
+import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -75,8 +76,11 @@ class SearchRequestStateTest {
             isRefreshing = false,
             errorMessage = "Timed out",
         )
+        val originalTmdbEnabled = TmdbSettingsRepository.snapshot().enabled
 
         try {
+            // This test isolates add-on manifest state. Actor search has its own request path.
+            TmdbSettingsRepository.setEnabled(false)
             SearchRepository.reset()
             SearchRepository.search(query = "movie", addons = listOf(pendingAddon))
             SearchRepository.refreshDiscover(addons = listOf(pendingAddon))
@@ -100,6 +104,7 @@ class SearchRequestStateTest {
             assertEquals("Timed out", SearchRepository.discoverUiState.value.errorMessage)
         } finally {
             SearchRepository.reset()
+            TmdbSettingsRepository.setEnabled(originalTmdbEnabled)
         }
     }
 
@@ -126,8 +131,11 @@ class SearchRequestStateTest {
             isRefreshing = false,
             errorMessage = "Timed out",
         )
+        val originalTmdbEnabled = TmdbSettingsRepository.snapshot().enabled
 
         try {
+            // Keep the add-on capability assertion independent from TMDB person search.
+            TmdbSettingsRepository.setEnabled(false)
             SearchRepository.reset()
             SearchRepository.search(query = "movie", addons = listOf(loadedAddon, pendingAddon))
             SearchRepository.refreshDiscover(addons = listOf(loadedAddon, pendingAddon))
@@ -147,6 +155,7 @@ class SearchRequestStateTest {
             )
         } finally {
             SearchRepository.reset()
+            TmdbSettingsRepository.setEnabled(originalTmdbEnabled)
         }
     }
 

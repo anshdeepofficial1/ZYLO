@@ -1,19 +1,26 @@
 package com.nuvio.app.features.downloads
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -33,11 +40,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.nuvio.app.core.i18n.localizedByteUnit
+import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioStatusModal
@@ -350,38 +359,65 @@ private fun DownloadRow(
         item = item,
         displayTitle = displayTitle,
     )
+    val speedBytesPerSecond = rememberDownloadSpeed(item)
+    val thumbnail = item.episodeThumbnail?.takeIf { it.isNotBlank() }
+        ?: item.poster?.takeIf { it.isNotBlank() }
+        ?: item.background?.takeIf { it.isNotBlank() }
+    val thumbnailWidth = if (item.isEpisode) 96.dp else 56.dp
+    val thumbnailHeight = if (item.isEpisode) 64.dp else 84.dp
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .clickable(enabled = item.isPlayable, onClick = onOpen),
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
+            Box(
+                modifier = Modifier
+                    .width(thumbnailWidth)
+                    .height(thumbnailHeight)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = displayTitle,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                if (thumbnail != null) {
+                    AsyncImage(
+                        model = thumbnail,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
                     )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = displayTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (displaySubtitle.isNotBlank()) {
                     Text(
                         text = displaySubtitle,
                         style = MaterialTheme.typography.bodySmall,
@@ -389,71 +425,130 @@ private fun DownloadRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        text = statusText(item),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
+                Text(
+                    text = statusText(item, speedBytesPerSecond),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    when (item.status) {
-                        DownloadStatus.Downloading -> {
-                            IconButton(onClick = onPause) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Pause,
-                                    contentDescription = stringResource(Res.string.compose_action_pause),
-                                )
-                            }
-                        }
-                        DownloadStatus.Paused -> {
-                            IconButton(onClick = onResume) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = stringResource(Res.string.action_resume),
-                                )
-                            }
-                        }
-                        DownloadStatus.Failed -> {
-                            IconButton(onClick = onRetry) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Refresh,
-                                    contentDescription = stringResource(Res.string.action_retry),
-                                )
-                            }
-                        }
-                        DownloadStatus.Completed -> {
-                            IconButton(onClick = onOpen) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = stringResource(Res.string.action_play),
-                                )
-                            }
-                        }
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Rounded.Delete,
-                            contentDescription = stringResource(Res.string.action_delete),
-                        )
-                    }
+                if (item.status == DownloadStatus.Downloading) {
+                    DownloadProgressBar(item = item)
                 }
             }
 
-            if (item.status == DownloadStatus.Downloading) {
-                if (item.totalBytes != null && item.totalBytes > 0L) {
-                    LinearProgressIndicator(
-                        progress = item.progressFraction,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
+            Column(horizontalAlignment = Alignment.End) {
+                when (item.status) {
+                    DownloadStatus.Downloading -> {
+                        IconButton(onClick = onPause) {
+                            Icon(
+                                imageVector = Icons.Rounded.Pause,
+                                contentDescription = stringResource(Res.string.compose_action_pause),
+                            )
+                        }
+                    }
+                    DownloadStatus.Paused -> {
+                        IconButton(onClick = onResume) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = stringResource(Res.string.action_resume),
+                            )
+                        }
+                    }
+                    DownloadStatus.Failed -> {
+                        IconButton(onClick = onRetry) {
+                            Icon(
+                                imageVector = Icons.Rounded.Refresh,
+                                contentDescription = stringResource(Res.string.action_retry),
+                            )
+                        }
+                    }
+                    DownloadStatus.Completed -> {
+                        IconButton(onClick = onOpen) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = stringResource(Res.string.action_play),
+                            )
+                        }
+                    }
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = stringResource(Res.string.action_delete),
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DownloadProgressBar(item: DownloadItem) {
+    val hasKnownTotal = (item.totalBytes ?: 0L) > 0L
+    val progress = if (hasKnownTotal) {
+        val animatedProgress by animateFloatAsState(
+            targetValue = item.progressFraction.coerceIn(0f, 1f),
+            animationSpec = tween(durationMillis = 400),
+            label = "download_progress",
+        )
+        animatedProgress
+    } else {
+        0f
+    }
+
+    if (hasKnownTotal) {
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(999.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    } else {
+        LinearProgressIndicator(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(999.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun rememberDownloadSpeed(item: DownloadItem): Long? {
+    var speed by remember(item.id) { mutableStateOf<Long?>(null) }
+    var lastSample by remember(item.id) { mutableStateOf<Pair<Long, Long>?>(null) }
+
+    LaunchedEffect(item.id, item.status, item.downloadedBytes) {
+        if (item.status != DownloadStatus.Downloading) {
+            speed = null
+            lastSample = null
+            return@LaunchedEffect
+        }
+        val now = DownloadsClock.nowEpochMs()
+        val previous = lastSample
+        if (previous == null) {
+            lastSample = now to item.downloadedBytes
+        } else {
+            val elapsedMs = now - previous.first
+            if (elapsedMs >= 700L) {
+                val deltaBytes = item.downloadedBytes - previous.second
+                if (deltaBytes > 0L) {
+                    speed = (deltaBytes * 1000L) / elapsedMs
+                }
+                lastSample = now to item.downloadedBytes
+            }
+        }
+    }
+
+    return speed
 }
 
 private fun DownloadItem.displayTitle(): String =
@@ -498,34 +593,28 @@ private fun SectionTitle(title: String) {
 }
 
 @Composable
-private fun statusText(item: DownloadItem): String {
-    val size = if (item.totalBytes != null && item.totalBytes > 0L) {
-        "${formatBytes(item.downloadedBytes)} / ${formatBytes(item.totalBytes)}"
-    } else {
-        formatBytes(item.downloadedBytes)
+private fun statusText(item: DownloadItem, speedBytesPerSecond: Long?): String {
+    val size = when {
+        item.status == DownloadStatus.Completed -> formatDownloadSize(item.totalBytes ?: item.downloadedBytes)
+        item.totalBytes != null && item.totalBytes > 0L ->
+            "${formatDownloadSize(item.downloadedBytes)} / ${formatDownloadSize(item.totalBytes)}"
+        else -> formatDownloadSize(item.downloadedBytes)
     }
 
     return when (item.status) {
-        DownloadStatus.Downloading -> stringResource(Res.string.downloads_status_downloading, size)
+        DownloadStatus.Downloading -> buildString {
+            append(stringResource(Res.string.downloads_status_downloading, size))
+            if (speedBytesPerSecond != null && speedBytesPerSecond > 0L) {
+                append(" • ")
+                append(formatDownloadSize(speedBytesPerSecond))
+                append("/s")
+            }
+        }
         DownloadStatus.Paused -> stringResource(Res.string.downloads_status_paused, size)
         DownloadStatus.Completed -> stringResource(
             Res.string.downloads_status_completed,
-            formatBytes(item.totalBytes ?: item.downloadedBytes),
+            formatDownloadSize(item.totalBytes ?: item.downloadedBytes),
         )
         DownloadStatus.Failed -> item.errorMessage ?: stringResource(Res.string.downloads_status_failed)
-    }
-}
-
-private fun formatBytes(bytes: Long): String {
-    if (bytes <= 0L) return "0 ${localizedByteUnit("B")}"
-    val kib = 1024.0
-    val mib = kib * 1024.0
-    val gib = mib * 1024.0
-    val value = bytes.toDouble()
-    return when {
-        value >= gib -> "${((value / gib) * 10.0).toInt() / 10.0} ${localizedByteUnit("GB")}"
-        value >= mib -> "${((value / mib) * 10.0).toInt() / 10.0} ${localizedByteUnit("MB")}"
-        value >= kib -> "${((value / kib) * 10.0).toInt() / 10.0} ${localizedByteUnit("KB")}"
-        else -> "$bytes ${localizedByteUnit("B")}"
     }
 }

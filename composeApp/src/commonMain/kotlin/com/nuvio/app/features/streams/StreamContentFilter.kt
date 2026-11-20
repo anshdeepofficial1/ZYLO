@@ -1,5 +1,6 @@
 package com.nuvio.app.features.streams
 
+import com.nuvio.app.core.text.sanitizeBrandLabel
 import io.ktor.http.decodeURLQueryComponent
 
 /**
@@ -31,6 +32,20 @@ internal object StreamContentFilter {
     )
 
     private val stopWords = setOf("the", "a", "an", "of", "and", "or", "to", "in", "on", "for")
+
+    /** Tokens that describe an encode/provider rather than the film or series title. */
+    private val technicalTitleTokens = setOf(
+        "web", "webdl", "webrip", "dl", "bluray", "brrip", "bdrip", "remux", "hdrip",
+        "hdtv", "dvdrip", "uhd", "fhd", "qhd", "sd", "hdr", "hdr10", "dv", "dolby",
+        "vision", "imax", "x264", "x265", "h264", "h265", "hevc", "avc", "av1",
+        "aac", "ddp", "eac3", "ac3", "dts", "truehd", "atmos", "flac", "opus",
+        "multi", "dual", "audio", "proper", "repack", "extended", "remastered", "unrated",
+        "mkv", "mp4", "m4v", "avi", "ts", "nf", "netflix", "amzn", "amazon", "dsnp",
+        "disney", "hmax", "max", "atvp", "pcok", "source", "direct", "stream",
+        "http", "https", "www", "com", "net", "org", "xyz", "top", "cdn", "cloud",
+        "video", "videos", "download", "extract", "url", "file", "files", "example",
+        "master", "playlist", "manifest", "m3u8", "mpd",
+    )
 
     private val numberWords = mapOf(
         "one" to "1",
@@ -78,13 +93,54 @@ internal object StreamContentFilter {
         return camPrintPattern.containsMatchIn(text)
     }
 
-    /** CAM/screener prints and known fake releases are hidden everywhere. */
-    fun isBlockedPrint(stream: StreamItem): Boolean = isCamPrint(stream) || isSpoofedRelease(stream)
+    /**
+     * CAM/screener prints are always hidden. Edition-labelled files are allowed only when the
+     * requested page is that exact edition; this keeps Encore off Endgame/Doomsday while still
+     * allowing the dedicated Encore page to play its own files.
+     */
+    fun isBlockedPrint(stream: StreamItem, expectedTitle: String? = null): Boolean =
+        isCamPrint(stream) || (isSpoofedRelease(stream) && !isEncoreEdition(expectedTitle))
 
     fun isSpoofedRelease(stream: StreamItem): Boolean {
         val text = streamPrintText(stream)
         if (text.isBlank()) return false
         return spoofedReleasePatterns.any { pattern -> pattern.containsMatchIn(text) }
+    }
+
+    /**
+     * Full identity gate used before auto-play and direct-stream discovery. A stream must match
+     * the requested title and must not advertise a different IMDb id or a conflicting year.
+     */
+    fun isIdentityCompatible(
+        stream: StreamItem,
+        expectedTitle: String?,
+        expectedYear: Int? = null,
+        expectedImdbId: String? = null,
+    ): Boolean {
+        if (isBlockedPrint(stream, expectedTitle)) return false
+        if (!matchesExpectedTitle(stream, expectedTitle)) return false
+        if (hasConflictingImdbId(stream, expectedImdbId)) return false
+        if (expectedYear != null) {
+            val actualYear = releaseYearOf(stream)
+            if (actualYear != null && kotlin.math.abs(actualYear - expectedYear) > 1) return false
+        }
+        return true
+    }
+
+    private fun isEncoreEdition(title: String?): Boolean {
+        val tokens = title?.let(::titleTokens).orEmpty()
+        return "endgame" in tokens && "encore" in tokens
+    }
+
+    /** Rejects a stream whose URL/filename carries a different IMDb id than the requested title. */
+    fun hasConflictingImdbId(stream: StreamItem, expectedImdbId: String?): Boolean {
+        val expected = expectedImdbId?.trim()?.lowercase().orEmpty()
+        if (expected.length < 9 || !expected.startsWith("tt")) return false
+        val found = releaseIdentityTexts(stream)
+            .joinToString(" ")
+            .lowercase()
+            .let { text -> Regex("""tt\d{6,}""").findAll(text).map { it.value }.toSet() }
+        return found.isNotEmpty() && expected !in found
     }
 
     /**
@@ -104,12 +160,54 @@ internal object StreamContentFilter {
         val expectedTokens = titleTokens(requested)
         if (expectedTokens.isEmpty()) return true
 
-        val actualTokens = releaseIdentityTexts(stream)
-            .flatMap(::titleTokens)
-            .toSet()
+        val identities = releaseIdentityTexts(stream)
+        val actualTokens = identities.flatMap(::titleTokens).toSet()
         // No usable release identity: keep the source instead of hiding a real stream.
         if (actualTokens.isEmpty()) return true
-        return expectedTokens.all(actualTokens::contains)
+        if (expectedTokens.all(actualTokens::contains)) return true
+
+        // Many Stremio-compatible addons expose only technical text (for example
+        // "1080p WEB-DL x265") and an opaque URL. That is not evidence of a different title.
+        // Reject only when a trusted file/title field carries a recognisable conflicting name.
+        val hasConflictingTitle = releaseTitleCandidates(stream).any { candidate ->
+            val semanticTokens = titleTokens(candidate).filterNot(::isTechnicalTitleToken).toSet()
+            semanticTokens.isNotEmpty() && !expectedTokens.all(semanticTokens::contains)
+        }
+        return !hasConflictingTitle
+    }
+
+    private fun isTechnicalTitleToken(token: String): Boolean {
+        if (token in technicalTitleTokens) return true
+        if (token in knownLanguages || knownProviders.any { (providerToken, _) -> token == providerToken }) return true
+        if (token.all(Char::isDigit)) return true
+        if (token.matches(Regex("""(?:2160|1440|1080|720|576|480|360|240)[pi]?"""))) return true
+        if (token.toIntOrNull()?.let { it in 1900..2099 } == true) return true
+        if (token.matches(Regex("""\d+(?:bit|ch|gb|mb)"""))) return true
+        // Signed CDN ids and hashes do not identify a title.
+        if (token.length >= 10 && token.any(Char::isDigit) && token.any(Char::isLetter)) return true
+        return false
+    }
+
+    private fun releaseTitleCandidates(stream: StreamItem): List<String> = buildList {
+        fun addCandidate(value: String?) {
+            value?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
+        }
+        addCandidate(stream.behaviorHints.filename)
+        addCandidate(stream.clientResolve?.stream?.raw?.filename)
+        addCandidate(stream.clientResolve?.stream?.raw?.torrentName)
+        addCandidate(stream.clientResolve?.stream?.raw?.parsed?.rawTitle)
+        addCandidate(stream.clientResolve?.stream?.raw?.parsed?.parsedTitle)
+        addCandidate(stream.title)
+        stream.url?.takeIf { it.isNotBlank() }?.let { rawUrl ->
+            var decoded = rawUrl
+            repeat(4) {
+                addCandidate(decoded.fileNameFromUrl())
+                val next = runCatching { decoded.decodeURLQueryComponent() }.getOrNull()
+                    ?: return@repeat
+                if (next == decoded) return@repeat
+                decoded = next
+            }
+        }
     }
 
     /**
@@ -170,13 +268,62 @@ internal object StreamContentFilter {
         return detectQualityInText(primary) ?: detectQualityInText(secondary)
     }
 
-    fun availableQualities(streams: List<StreamItem>): List<StreamPrintQuality> =
+    fun availableQualities(
+        streams: List<StreamItem>,
+        expectedTitle: String? = null,
+    ): List<StreamPrintQuality> =
         streams.asSequence()
-            .filterNot(::isBlockedPrint)
+            .filterNot { stream -> isBlockedPrint(stream, expectedTitle) }
             .mapNotNull(::detectQuality)
             .distinct()
             .sortedByDescending { it.rank }
             .toList()
+
+    /**
+     * Lower is better when a user has an audio preference. 0 = explicitly carries the preferred
+     * language, 1 = multi/unknown, 2 = explicitly a different language.
+     */
+    fun audioLanguageRank(stream: StreamItem, preferredAudioLanguage: String?): Int {
+        val code = preferredAudioLanguage
+            ?.trim()
+            ?.lowercase()
+            ?.substringBefore('-')
+            .orEmpty()
+        if (code.length != 2) return 0
+        val preferredToken = languageCodeTokens[code] ?: return 0
+        val text = streamPrintText(stream)
+        val isMulti = "multi" in text || "dual audio" in text || "dual-audio" in text
+        if (preferredToken in text) return 0
+        val hasKnownLanguage = knownLanguages.keys.any(text::contains)
+        return when {
+            isMulti -> 1
+            hasKnownLanguage -> 2
+            else -> 1
+        }
+    }
+
+    private val languageCodeTokens = mapOf(
+        "hi" to "hindi",
+        "en" to "english",
+        "ta" to "tamil",
+        "te" to "telugu",
+        "ml" to "malayalam",
+        "kn" to "kannada",
+        "bn" to "bengali",
+        "mr" to "marathi",
+        "pa" to "punjabi",
+        "gu" to "gujarati",
+        "ur" to "urdu",
+        "ko" to "korean",
+        "ja" to "japanese",
+        "zh" to "chinese",
+        "es" to "spanish",
+        "fr" to "french",
+        "de" to "german",
+        "ru" to "russian",
+        "pt" to "portuguese",
+        "it" to "italian",
+    )
 
     fun parsedSizeBytes(stream: StreamItem): Long? =
         stream.behaviorHints.videoSize?.takeIf { it > 0L }
@@ -214,10 +361,12 @@ internal object StreamContentFilter {
         knownProviders.firstOrNull { (token, _) -> text.contains(token) }?.let { return it.second }
         val host = stream.url?.hostFromUrl().orEmpty()
         val providerHost = knownProviderHosts[host]
-        return providerHost
-            ?: stream.sourceName?.trim()?.takeIf { it.isNotBlank() && !it.equals("ZYLO Direct", ignoreCase = true) }
-            ?: host.takeIf { it.isNotBlank() }
-            ?: stream.addonName
+        return sanitizeBrandLabel(
+            providerHost
+                ?: stream.sourceName?.trim()?.takeIf { it.isNotBlank() && !it.equals("ZYLO Direct", ignoreCase = true) }
+                ?: host.takeIf { it.isNotBlank() }
+                ?: stream.addonName,
+        )
     }
 
     private fun detectQualityInText(text: String): StreamPrintQuality? {

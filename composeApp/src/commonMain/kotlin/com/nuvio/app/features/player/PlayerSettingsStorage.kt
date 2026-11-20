@@ -125,6 +125,8 @@ internal expect object PlayerSettingsStorage {
     fun saveTargetBufferSizeMb(value: Int)
     fun loadStreamAutoPlayMode(): String?
     fun saveStreamAutoPlayMode(mode: String)
+    fun loadStreamPreferredQuality(): String?
+    fun saveStreamPreferredQuality(quality: String)
     fun loadStreamAutoPlaySource(): String?
     fun saveStreamAutoPlaySource(source: String)
     fun loadStreamAutoPlaySelectedAddons(): Set<String>?

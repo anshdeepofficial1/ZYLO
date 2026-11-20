@@ -83,12 +83,19 @@ object ZyloStreams {
             if (response == null || response.status !in 200..299 || response.body.isBlank()) continue
 
             val parsed = runCatching {
-                StreamParser.parse(response.body, addonName, addonId)
+                StreamParser.parse(
+                    payload = response.body,
+                    addonName = addonName,
+                    addonId = addonId,
+                    expectedTitle = meta?.name,
+                )
             }.getOrDefault(emptyList())
             directStreams = prepareDirectStreams(
                 streams = parsed,
                 expectedTitle = meta?.name,
-                verifyTitle = !isSeries,
+                expectedYear = expectedReleaseYear(meta?.releaseDate, meta?.releaseInfo),
+                expectedImdbId = meta?.imdbId ?: imdbId,
+                verifyTitle = true,
             )
             if (directStreams.isNotEmpty()) break
         }
@@ -126,17 +133,27 @@ object ZyloStreams {
     internal fun prepareDirectStreams(
         streams: List<StreamItem>,
         expectedTitle: String? = null,
+        expectedYear: Int? = null,
+        expectedImdbId: String? = null,
         verifyTitle: Boolean = true,
     ): List<StreamItem> =
         streams
             .asSequence()
             .filter { stream -> stream.url.isDirectHttpUrl() }
-            .filterNot(StreamContentFilter::isBlockedPrint)
+            .filterNot { stream -> StreamContentFilter.isBlockedPrint(stream, expectedTitle) }
             .filter { stream ->
-                !verifyTitle || StreamContentFilter.matchesExpectedTitle(stream, expectedTitle)
+                !verifyTitle || StreamContentFilter.isIdentityCompatible(
+                    stream = stream,
+                    expectedTitle = expectedTitle,
+                    expectedYear = expectedYear,
+                    expectedImdbId = expectedImdbId,
+                )
             }
             .distinctBy { stream -> stream.url?.trim() }
-            .sortedBy(::reliabilityScore)
+            .sortedWith(
+                compareByDescending<StreamItem> { StreamContentFilter.detectQuality(it)?.rank ?: -1 }
+                    .thenBy(::reliabilityScore),
+            )
             .mapIndexed { index, stream ->
                 val providerKey = directProviderKey(stream, index)
                 stream.copy(
@@ -171,14 +188,14 @@ object ZyloStreams {
         }
     }
 
-    /** Lower is more likely to start quickly on both ExoPlayer and browser remux paths. */
+    /**
+     * Lower is more likely to start quickly on both ExoPlayer and browser remux paths.
+     * Quality is intentionally not part of this score: print quality is ranked separately so a
+     * playable 4K source is never pushed below a 1080p one.
+     */
     internal fun reliabilityScore(stream: StreamItem): Int {
         val text = streamSearchText(stream)
         var score = 100
-        if ("1080p" in text) score -= 18
-        if ("720p" in text) score -= 12
-        if ("480p" in text) score -= 4
-        if ("2160p" in text || "4k" in text) score += 28
         if (".mp4" in text) score -= 18
         if ("x264" in text || "h264" in text || "avc" in text) score -= 14
         if ("aac" in text) score -= 8
@@ -248,4 +265,14 @@ object ZyloStreams {
         ?.substringBefore('?')
         ?.lowercase()
         .orEmpty()
+
+    /** Year used only to reject a same-name release from a different year. */
+    private fun expectedReleaseYear(releaseDate: String?, releaseInfo: String?): Int? {
+        releaseDate?.trim()?.take(4)?.toIntOrNull()?.takeIf { it in 1900..2100 }?.let { return it }
+        return Regex("""(?<!\d)((?:19|20)\d{2})(?!\d)""")
+            .find(releaseInfo.orEmpty())
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+    }
 }

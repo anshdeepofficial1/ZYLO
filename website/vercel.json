@@ -52,7 +52,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "/(settings|library|sign-in|setup|party|movie|series|link)/:path*",
+      "source": "/(home|search|discover|library|settings|detail|streams|watch|account|sign-in|profiles|setup|addons|plugins|cast|catalog|party|movie|series|link)/:path*",
       "destination": "/index.html"
     }
   ]

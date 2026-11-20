@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="server_error_official_available">api.nuvio.tv அதிகாரப்பூர்வ சேவையகம். இந்த உரையாடலை மூடி, மீண்டும் மாற “அதிகாரப்பூர்வ சேவையகத்தைப் பயன்படுத்து” என்பதைத் தேர்ந்தெடுக்கவும்.</string>
+    <string name="server_error_official_available">ZYLO server அதிகாரப்பூர்வ சேவையகம். இந்த உரையாடலை மூடி, மீண்டும் மாற “அதிகாரப்பூர்வ சேவையகத்தைப் பயன்படுத்து” என்பதைத் தேர்ந்தெடுக்கவும்.</string>
     <string name="server_error_connection">கண்டறிதல் endpoint-ஐ அணுக முடியவில்லை. URL மற்றும் சேவையக நிலையைச் சரிபார்க்கவும்.</string>
     <string name="server_error_http">கண்டறிதல் endpoint HTTP %1$d பதிலை வழங்கியது.</string>
     <string name="server_error_response_too_large">கண்டறிதல் ஆவணம் அனுமதிக்கப்பட்ட அளவை விடப் பெரியது.</string>

@@ -56,7 +56,7 @@
     <string name="compose_auth_link_code_expired">இந்தக் குறியீடு காலாவதியாகிவிட்டது.</string>
     <string name="compose_auth_link_creating_code">குறியீட்டை உருவாக்குகிறது…</string>
     <string name="compose_auth_link_failed">இணைப்பு வழி உள்நுழைவு தோல்வியடைந்தது.</string>
-    <string name="compose_auth_link_open">nuvio.tv/link-ஐத் திற</string>
+    <string name="compose_auth_link_open">ZYLO link-ஐத் திற</string>
     <string name="compose_auth_link_open_failed">இணைப்பைத் திறக்க முடியவில்லை.</string>
     <string name="compose_auth_link_sign_in">இணைப்பு மூலம் உள்நுழைக</string>
     <string name="compose_auth_link_signing_in">உள்நுழைகிறது…</string>
@@ -99,5 +99,5 @@
     <string name="server_official_action">அதிகாரப்பூர்வ சேவையகத்தைப் பயன்படுத்து</string>
     <string name="server_switching">மாற்றுகிறது…</string>
     <string name="server_error_invalid_url">சரியான HTTP அல்லது HTTPS Backend URL-ஐ உள்ளிடவும்.</string>
-    <string name="server_error_official_active">api.nuvio.tv அதிகாரப்பூர்வ சேவையகம்; அது ஏற்கனவே தேர்ந்தெடுக்கப்பட்டுள்ளது.</string>
+    <string name="server_error_official_active">ZYLO server அதிகாரப்பூர்வ சேவையகம்; அது ஏற்கனவே தேர்ந்தெடுக்கப்பட்டுள்ளது.</string>
 </resources>

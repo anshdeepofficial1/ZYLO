@@ -271,6 +271,86 @@ class StreamAutoPlaySelectorTest {
     }
 
     @Test
+    fun `autoplay chooses 4k before 1080p`() {
+        val fullHd = stream(
+            addonName = "Direct Addon",
+            url = "https://example.com/movie.1080p.mp4",
+            name = "Movie 1080p English",
+        )
+        val ultraHd = stream(
+            addonName = "Direct Addon",
+            url = "https://example.com/movie.2160p.mkv",
+            name = "Movie 2160p Hindi",
+        )
+
+        val selected = StreamAutoPlaySelector.selectAutoPlayStream(
+            streams = listOf(fullHd, ultraHd),
+            mode = StreamAutoPlayMode.FIRST_STREAM,
+            regexPattern = "",
+            source = StreamAutoPlaySource.ALL_SOURCES,
+            installedAddonNames = setOf("Direct Addon"),
+            selectedAddons = emptySet(),
+            selectedPlugins = emptySet(),
+        )
+
+        assertEquals(ultraHd, selected)
+    }
+
+    @Test
+    fun `preferred audio breaks ties within the same quality`() {
+        val english = stream(
+            addonName = "Direct Addon",
+            url = "https://example.com/movie.2160p.english.mkv",
+            name = "Movie 2160p English",
+        )
+        val hindi = stream(
+            addonName = "Direct Addon",
+            url = "https://example.com/movie.2160p.hindi.mkv",
+            name = "Movie 2160p Hindi",
+        )
+
+        val selected = StreamAutoPlaySelector.selectAutoPlayStream(
+            streams = listOf(english, hindi),
+            mode = StreamAutoPlayMode.FIRST_STREAM,
+            regexPattern = "",
+            source = StreamAutoPlaySource.ALL_SOURCES,
+            installedAddonNames = setOf("Direct Addon"),
+            selectedAddons = emptySet(),
+            selectedPlugins = emptySet(),
+            preferredAudioLanguage = "hi",
+        )
+
+        assertEquals(hindi, selected)
+    }
+
+    @Test
+    fun `explicit 1080p preference wins over available 4k`() {
+        val ultraHd = stream(
+            addonName = "Direct Addon",
+            url = "https://example.com/movie.2160p.mkv",
+            name = "Movie 2160p Hindi",
+        )
+        val fullHd = stream(
+            addonName = "Direct Addon",
+            url = "https://example.com/movie.1080p.mp4",
+            name = "Movie 1080p Hindi",
+        )
+
+        val selected = StreamAutoPlaySelector.selectAutoPlayStream(
+            streams = listOf(ultraHd, fullHd),
+            mode = StreamAutoPlayMode.FIRST_STREAM,
+            regexPattern = "",
+            source = StreamAutoPlaySource.ALL_SOURCES,
+            installedAddonNames = setOf("Direct Addon"),
+            selectedAddons = emptySet(),
+            selectedPlugins = emptySet(),
+            preferredQuality = StreamQualityPreference.FHD_1080P,
+        )
+
+        assertEquals(fullHd, selected)
+    }
+
+    @Test
     fun `nested exclusions do not crash regex selection`() {
         val stream = stream(
             addonName = "Direct Addon",

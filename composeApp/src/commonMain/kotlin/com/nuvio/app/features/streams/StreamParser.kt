@@ -19,6 +19,7 @@ object StreamParser {
         addonName: String,
         addonId: String,
         addonLogo: String? = null,
+        expectedTitle: String? = null,
     ): List<StreamItem> {
         val root = json.parseToJsonElement(payload).jsonObject
         val streamsArray = root["streams"] as? JsonArray ?: return emptyList()
@@ -63,7 +64,7 @@ object StreamParser {
                     proxyHeaders = proxyHeaders,
                 ),
             )
-        }.filterNot(StreamContentFilter::isBlockedPrint)
+        }.filterNot { stream -> StreamContentFilter.isBlockedPrint(stream, expectedTitle) }
     }
 
     private fun JsonObject.string(name: String): String? =

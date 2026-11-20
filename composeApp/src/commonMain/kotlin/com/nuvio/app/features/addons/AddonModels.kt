@@ -1,5 +1,6 @@
 package com.nuvio.app.features.addons
 
+import com.nuvio.app.core.text.sanitizeBrandLabel
 import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.generic_addon
@@ -72,11 +73,13 @@ data class ManagedAddon(
         get() = enabled && manifest != null
 
     val displayTitle: String
-        get() = userSetName?.takeIf { it.isNotBlank() && it != manifest?.name }
-            ?: manifest?.name
-            ?: manifestUrl.substringBefore("?").substringAfterLast("/").ifBlank {
-                runBlocking { getString(Res.string.generic_addon) }
-            }
+        get() = sanitizeBrandLabel(
+            userSetName?.takeIf { it.isNotBlank() && it != manifest?.name }
+                ?: manifest?.name
+                ?: manifestUrl.substringBefore("?").substringAfterLast("/").ifBlank {
+                    runBlocking { getString(Res.string.generic_addon) }
+                },
+        )
 }
 
 data class AddonsUiState(

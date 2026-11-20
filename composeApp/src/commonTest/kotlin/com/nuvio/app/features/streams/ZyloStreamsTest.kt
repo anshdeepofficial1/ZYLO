@@ -46,7 +46,7 @@ class ZyloStreamsTest {
         val prepared = ZyloStreams.prepareDirectStreams(streams)
 
         assertEquals(2, prepared.size)
-        assertEquals("https://cdn.example/fast.mp4", prepared.first().url)
+        assertEquals("https://cdn.example/large.mkv", prepared.first().url)
         assertNull(prepared.first().externalUrl)
         assertEquals("ZYLO Direct", prepared.first().addonName)
         assertTrue(prepared.first().behaviorHints.bingeGroup.orEmpty().startsWith("zylo_direct|"))

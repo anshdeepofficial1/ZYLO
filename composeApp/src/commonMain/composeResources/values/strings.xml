@@ -354,7 +354,7 @@
     <string name="compose_auth_link_code_expired">This code expired.</string>
     <string name="compose_auth_link_creating_code">Creating code…</string>
     <string name="compose_auth_link_failed">Link sign-in failed.</string>
-    <string name="compose_auth_link_open">Open nuvio.tv/link</string>
+    <string name="compose_auth_link_open">Open ZYLO link</string>
     <string name="compose_auth_link_open_failed">Couldn't open the link.</string>
     <string name="compose_auth_link_sign_in">Sign In with Link</string>
     <string name="compose_auth_link_signing_in">Signing in…</string>
@@ -397,8 +397,8 @@
     <string name="server_official_action">Use official server</string>
     <string name="server_switching">Switching…</string>
     <string name="server_error_invalid_url">Enter a valid HTTP or HTTPS Backend URL.</string>
-    <string name="server_error_official_active">api.nuvio.tv is the official server and is already selected.</string>
-    <string name="server_error_official_available">api.nuvio.tv is the official server. Close this dialog and choose Use official server to switch back.</string>
+    <string name="server_error_official_active">ZYLO server is the official server and is already selected.</string>
+    <string name="server_error_official_available">ZYLO server is the official server. Close this dialog and choose Use official server to switch back.</string>
     <string name="server_error_connection">Could not reach the discovery endpoint. Check the URL and server availability.</string>
     <string name="server_error_http">The discovery endpoint returned HTTP %1$d.</string>
     <string name="server_error_response_too_large">The discovery document is larger than allowed.</string>
@@ -502,6 +502,8 @@
     <string name="compose_search_empty_no_search_catalogs_title">No searchable catalogs</string>
     <string name="compose_search_placeholder">Search movies, shows...</string>
     <string name="compose_search_recent_searches">Recent Searches</string>
+    <string name="search_top_results">Top results</string>
+    <string name="search_tmdb_results">TMDB results</string>
     <string name="compose_search_remove_recent_search">Remove recent search</string>
     <string name="compose_settings_category_about">About</string>
     <string name="compose_settings_category_general">General</string>
@@ -1226,6 +1228,8 @@
     <string name="settings_playback_source_scope_installed_addons_only">Installed addons only</string>
     <string name="settings_playback_source_scope_installed_addons_only_description">Auto-play only considers streams coming from your installed addons.</string>
     <string name="settings_playback_stream_selection_mode">Auto Stream Selection</string>
+    <string name="settings_playback_preferred_quality">Preferred video quality</string>
+    <string name="settings_playback_quality_highest_available">Highest available</string>
     <string name="settings_playback_stream_selection_mode_first_stream">Auto-play first source</string>
     <string name="settings_playback_stream_selection_mode_first_stream_description">Play the first available source automatically.</string>
     <string name="settings_playback_stream_selection_mode_manual">Manual (choose stream)</string>
@@ -1612,6 +1616,8 @@
     <string name="home_empty_no_rows_title">No Home content available</string>
     <string name="home_load_failed_title">Couldn’t load Home</string>
     <string name="home_view_details">View Details</string>
+    <string name="home_spotlight_title">New &amp; Returning</string>
+    <string name="spotlight_encore_description">The 2026 Encore cut of Avengers: Endgame adds four new scenes and a new colour grade that bridge directly into Avengers: Doomsday. The original story is unchanged.</string>
     <string name="meta_section_actions_description">Play and save controls.</string>
     <string name="meta_section_actions_title">Actions</string>
     <string name="meta_section_cast_description">Principal cast list.</string>
@@ -1639,6 +1645,7 @@
     <string name="person_known_for">Known for: %1$s</string>
     <string name="person_latest">Latest</string>
     <string name="person_load_failed">Could not load details for %1$s</string>
+    <string name="person_open_failed">Could not open %1$s. Try again.</string>
     <string name="person_popular">Popular</string>
     <string name="person_something_wrong">Something went wrong</string>
     <string name="person_upcoming">Upcoming</string>
@@ -1706,8 +1713,8 @@
     <string name="movie_release_awaiting_ott_body">The theatrical run has ended. We’ll remind you when the movie is available to stream.</string>
     <string name="movie_release_ott_title">OTT release</string>
     <string name="movie_release_ott_body">Releases on OTT on %1$s</string>
-    <string name="movie_release_countdown_days">In %1$d days • %2$02d:%3$02d</string>
-    <string name="movie_release_countdown_hours">In %1$02d:%2$02d:%3$02d</string>
+    <string name="movie_release_countdown_days">In %1$d days • %2$d:%3$d</string>
+    <string name="movie_release_countdown_hours">In %1$d:%2$d:%3$d</string>
     <string name="movie_release_today">Releasing today</string>
     <string name="movie_release_remind_me">Remind me</string>
     <string name="movie_release_reminder_set">Reminder set</string>
@@ -1749,6 +1756,9 @@
     <string name="streams_finding_streams">Finding streams…</string>
     <string name="streams_link_copied">Stream link copied</string>
     <string name="streams_no_direct_link">No direct stream link available</string>
+    <string name="streams_refetch">Refetch fresh sources</string>
+    <string name="streams_refetching">Refetching this title…</string>
+    <string name="streams_refetch_failed">Could not refetch this title. Try again.</string>
     <string name="streams_no_metadata">No metadata available</string>
     <string name="streams_refresh">Refresh streams</string>
     <string name="streams_resume_from_percent">Resume from %1$d%</string>

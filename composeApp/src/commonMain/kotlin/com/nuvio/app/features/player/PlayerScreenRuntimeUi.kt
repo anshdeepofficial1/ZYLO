@@ -249,6 +249,20 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                     },
                     onError = { message ->
                         if (!active.value || playbackKey != activePlaybackKey) return@PlatformPlayerSurface
+                        // ExoPlayer/mpv can report a final segment/EOF error immediately after the
+                        // last frame. Once real playback reached the end, this is completion—not a
+                        // dead source that should trigger server failover or an error overlay.
+                        if (message != null && isLikelyNaturalPlaybackCompletion(
+                                snapshot = playbackSnapshot,
+                                playbackStarted = initialLoadCompleted || mediaPlaybackStarted,
+                            )
+                        ) {
+                            errorMessage = null
+                            shouldPlay = false
+                            playbackSnapshot = playbackSnapshot.asNaturalPlaybackEnd()
+                            controlsVisible = !playerControlsLocked
+                            return@PlatformPlayerSurface
+                        }
                         if (message != null && tryRefreshCredentialedSourceAfterError(message)) {
                             return@PlatformPlayerSurface
                         }
@@ -342,6 +356,25 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
     }
 }
+
+private const val NATURAL_PLAYBACK_END_TOLERANCE_MS = 3_000L
+
+internal fun isLikelyNaturalPlaybackCompletion(
+    snapshot: PlayerPlaybackSnapshot,
+    playbackStarted: Boolean,
+): Boolean {
+    if (!playbackStarted) return false
+    if (snapshot.isEnded) return true
+    if (snapshot.durationMs <= 0L || snapshot.positionMs <= 0L) return false
+    return snapshot.positionMs >= (snapshot.durationMs - NATURAL_PLAYBACK_END_TOLERANCE_MS).coerceAtLeast(0L)
+}
+
+internal fun PlayerPlaybackSnapshot.asNaturalPlaybackEnd(): PlayerPlaybackSnapshot = copy(
+    isLoading = false,
+    isPlaying = false,
+    isEnded = true,
+    positionMs = if (durationMs > 0L) maxOf(positionMs, durationMs) else positionMs,
+)
 
 @Composable
 private fun p2pConnectingPhaseLabel(phase: String): String = when (phase) {

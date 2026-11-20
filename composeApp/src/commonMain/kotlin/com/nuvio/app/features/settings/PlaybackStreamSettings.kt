@@ -37,6 +37,7 @@ import com.nuvio.app.features.plugins.PluginsUiState
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamAutoPlaySource
+import com.nuvio.app.features.streams.StreamQualityPreference
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -49,6 +50,7 @@ internal fun PlaybackStreamSettings(
 ) {
     var showReuseCacheDurationDialog by remember { mutableStateOf(false) }
     var showAutoPlayModeDialog by remember { mutableStateOf(false) }
+    var showPreferredQualityDialog by remember { mutableStateOf(false) }
     var showAutoPlaySourceDialog by remember { mutableStateOf(false) }
     var showAutoPlayAddonSelectionDialog by remember { mutableStateOf(false) }
     var showAutoPlayPluginSelectionDialog by remember { mutableStateOf(false) }
@@ -97,6 +99,13 @@ internal fun PlaybackStreamSettings(
                     description = stringResource(settings.streamAutoPlayMode.labelRes),
                     isTablet = isTablet,
                     onClick = { showAutoPlayModeDialog = true },
+                )
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsNavigationRow(
+                    title = stringResource(Res.string.settings_playback_preferred_quality),
+                    description = preferredQualityLabel(settings.streamPreferredQuality),
+                    isTablet = isTablet,
+                    onClick = { showPreferredQualityDialog = true },
                 )
                 if (settings.streamAutoPlayMode == StreamAutoPlayMode.REGEX_MATCH) {
                     SettingsGroupDivider(isTablet = isTablet)
@@ -230,6 +239,17 @@ internal fun PlaybackStreamSettings(
         )
     }
 
+    if (showPreferredQualityDialog) {
+        PreferredStreamQualityDialog(
+            selected = settings.streamPreferredQuality,
+            onSelected = { quality ->
+                PlayerSettingsRepository.setStreamPreferredQuality(quality)
+                showPreferredQualityDialog = false
+            },
+            onDismiss = { showPreferredQualityDialog = false },
+        )
+    }
+
     if (showAutoPlaySourceDialog) {
         StreamAutoPlaySourceDialog(
             pluginsEnabled = pluginsEnabled,
@@ -291,6 +311,39 @@ internal fun PlaybackStreamSettings(
             },
             onDismiss = { showAutoPlayRegexDialog = false },
         )
+    }
+}
+
+@Composable
+private fun preferredQualityLabel(quality: StreamQualityPreference): String = when (quality) {
+    StreamQualityPreference.HIGHEST_AVAILABLE -> stringResource(Res.string.settings_playback_quality_highest_available)
+    StreamQualityPreference.UHD_4K -> "4K"
+    StreamQualityPreference.FHD_1080P -> "1080p"
+    StreamQualityPreference.HD_720P -> "720p"
+}
+
+@Composable
+private fun PreferredStreamQualityDialog(
+    selected: StreamQualityPreference,
+    onSelected: (StreamQualityPreference) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    DialogSurface(
+        onDismissRequest = onDismiss,
+        title = stringResource(Res.string.settings_playback_preferred_quality),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StreamQualityPreference.entries.forEach { quality ->
+                DialogOption(
+                    text = preferredQualityLabel(quality),
+                    selected = quality == selected,
+                    onClick = { onSelected(quality) },
+                )
+            }
+        }
     }
 }
 

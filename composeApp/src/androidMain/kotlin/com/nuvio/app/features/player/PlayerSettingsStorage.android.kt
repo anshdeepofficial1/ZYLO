@@ -80,6 +80,7 @@ actual object PlayerSettingsStorage {
     private const val backBufferDurationMsKey = "back_buffer_duration_ms"
     private const val targetBufferSizeMbKey = "target_buffer_size_mb"
     private const val streamAutoPlayModeKey = "stream_auto_play_mode"
+    private const val streamPreferredQualityKey = "stream_preferred_quality"
     private const val streamAutoPlaySourceKey = "stream_auto_play_source"
     private const val streamAutoPlaySelectedAddonsKey = "stream_auto_play_selected_addons"
     private const val streamAutoPlaySelectedPluginsKey = "stream_auto_play_selected_plugins"
@@ -1047,6 +1048,16 @@ actual object PlayerSettingsStorage {
             ?.apply()
     }
 
+    actual fun loadStreamPreferredQuality(): String? =
+        preferences?.getString(ProfileScopedKey.of(streamPreferredQualityKey), null)
+
+    actual fun saveStreamPreferredQuality(quality: String) {
+        preferences
+            ?.edit()
+            ?.putString(ProfileScopedKey.of(streamPreferredQualityKey), quality)
+            ?.apply()
+    }
+
     actual fun loadStreamAutoPlaySource(): String? =
         preferences?.getString(ProfileScopedKey.of(streamAutoPlaySourceKey), null)
 
@@ -1567,6 +1578,7 @@ actual object PlayerSettingsStorage {
         loadMapDV7ToHevc()?.let { put(mapDV7ToHevcKey, encodeSyncBoolean(it)) }
         loadTunnelingEnabled()?.let { put(tunnelingEnabledKey, encodeSyncBoolean(it)) }
         loadStreamAutoPlayMode()?.let { put(streamAutoPlayModeKey, encodeSyncString(it)) }
+        loadStreamPreferredQuality()?.let { put(streamPreferredQualityKey, encodeSyncString(it)) }
         loadStreamAutoPlaySource()?.let { put(streamAutoPlaySourceKey, encodeSyncString(it)) }
         loadStreamAutoPlaySelectedAddons()?.let { put(streamAutoPlaySelectedAddonsKey, encodeSyncStringSet(it)) }
         loadStreamAutoPlaySelectedPlugins()?.let { put(streamAutoPlaySelectedPluginsKey, encodeSyncStringSet(it)) }
@@ -1658,6 +1670,7 @@ actual object PlayerSettingsStorage {
         payload.decodeSyncBoolean(mapDV7ToHevcKey)?.let(::saveMapDV7ToHevc)
         payload.decodeSyncBoolean(tunnelingEnabledKey)?.let(::saveTunnelingEnabled)
         payload.decodeSyncString(streamAutoPlayModeKey)?.let(::saveStreamAutoPlayMode)
+        payload.decodeSyncString(streamPreferredQualityKey)?.let(::saveStreamPreferredQuality)
         payload.decodeSyncString(streamAutoPlaySourceKey)?.let(::saveStreamAutoPlaySource)
         payload.decodeSyncStringSet(streamAutoPlaySelectedAddonsKey)?.let(::saveStreamAutoPlaySelectedAddons)
         payload.decodeSyncStringSet(streamAutoPlaySelectedPluginsKey)?.let(::saveStreamAutoPlaySelectedPlugins)

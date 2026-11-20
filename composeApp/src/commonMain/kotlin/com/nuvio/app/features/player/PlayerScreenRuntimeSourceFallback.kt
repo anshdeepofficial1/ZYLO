@@ -102,6 +102,12 @@ internal fun PlayerScreenRuntime.tryFallbackToNextSourceAfterError(message: Stri
                     triedKeys = sourceFallbackTriedKeys,
                     failedAddonId = failedAddonId,
                     failedInfoHash = failedInfoHash,
+                    expectedTitle = (metaUiState.meta ?: playerMeta)?.name ?: title,
+                    expectedYear = (metaUiState.meta ?: playerMeta)?.releaseDate
+                        ?.trim()
+                        ?.take(4)
+                        ?.toIntOrNull(),
+                    expectedImdbId = (metaUiState.meta ?: playerMeta)?.imdbId,
                 )
                 if (next == null) {
                     val searchDone = state.emptyStateReason != null || (!state.isAnyLoading && state.groups.isNotEmpty())
@@ -152,6 +158,9 @@ internal fun nextSourceFallbackCandidate(
     installedAddonNames: Set<String> = AddonRepository.uiState.value.addons.enabledAddons().map { it.displayTitle }.toSet(),
     debridEnabled: Boolean = DebridSettingsRepository.snapshot().canResolvePlayableLinks,
     activeResolverProviderId: String? = DebridSettingsRepository.snapshot().activeResolverProviderId,
+    expectedTitle: String? = null,
+    expectedYear: Int? = null,
+    expectedImdbId: String? = null,
 ): StreamItem? {
     val untried = streams.filterNot { stream ->
         val key = stream.playerSourceIdentityKey()
@@ -169,5 +178,10 @@ internal fun nextSourceFallbackCandidate(
         selectedPlugins = settings.streamAutoPlaySelectedPlugins,
         debridEnabled = debridEnabled,
         activeResolverProviderId = activeResolverProviderId,
+        preferredAudioLanguage = settings.preferredAudioLanguage,
+        preferredQuality = settings.streamPreferredQuality,
+        expectedTitle = expectedTitle,
+        expectedYear = expectedYear,
+        expectedImdbId = expectedImdbId,
     ).readyStreams.firstOrNull()
 }

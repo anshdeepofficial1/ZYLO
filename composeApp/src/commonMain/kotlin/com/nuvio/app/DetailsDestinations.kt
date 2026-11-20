@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.details.MetaDetailsScreen
 import com.nuvio.app.features.details.PersonDetailScreen
 import com.nuvio.app.features.details.TmdbEntityBrowseScreen
@@ -14,14 +15,17 @@ import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.tmdb.TmdbService
 import com.nuvio.app.navigation.DetailRoute
+import com.nuvio.app.navigation.DownloadsRoute
 import com.nuvio.app.navigation.EntityBrowseRoute
 import com.nuvio.app.navigation.NuvioNavigator
 import com.nuvio.app.navigation.PersonDetailRoute
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.person_open_failed
 import nuvio.composeapp.generated.resources.person_role_creator
 import nuvio.composeapp.generated.resources.person_role_director
 import nuvio.composeapp.generated.resources.person_role_writer
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
 internal typealias ContentPlayAction = (
@@ -86,6 +90,11 @@ internal fun DetailsDestination(
         onPlay = onPlay,
         onPlayManually = onPlayManually,
         onOpenMeta = onOpenMeta,
+        onOpenDownloads = {
+            navController.navigate(DownloadsRoute()) {
+                launchSingleTop = true
+            }
+        },
         onCastClick = { person, avatarTransitionKey ->
             val tmdbId = person.tmdbId
             val navigateToPerson: (Int) -> Unit = { id ->
@@ -110,9 +119,15 @@ internal fun DetailsDestination(
                 navigateToPerson(tmdbId)
             } else {
                 scope.launch {
-                    val resolvedId = com.nuvio.app.features.tmdb.TmdbService.searchPerson(person.name)
+                    val resolvedId = runCatching {
+                        com.nuvio.app.features.tmdb.TmdbService.searchPerson(person.name)
+                    }.getOrNull()
                     if (resolvedId != null && resolvedId > 0) {
                         navigateToPerson(resolvedId)
+                    } else {
+                        NuvioToastController.show(
+                            getString(Res.string.person_open_failed, person.name),
+                        )
                     }
                 }
             }
